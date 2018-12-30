@@ -421,27 +421,33 @@ def readSlateCalendar(calendar, slateCalendar, windowBegin, windowEnd):
 
 					# Check to see if start date is between range we are looking for
 					if (type(tempEvent['start']) == date):
-						startDate = datetime.combine(tempEvent['start'], datetime.min.time())
+						startDate = datetime.combine(tempEvent['start'], datetime.min.time(), pytz.utc)
 					else:
 						startDate = tempEvent['start']
 
-					if (startDate >= windowBegin and startDate <= windowEnd and tempEvent['status'] == 'CONFIRMED'):
-						# Calculate digest
-						m = hashlib.md5()
-						m.update(tempEvent['summary'].encode('utf-8'))
-						m.update(tempEvent['location'].encode('utf-8'))
-						m.update(tempEvent['start'].strftime("%A, %d. %B %Y %I:%M%p").encode('utf-8'))
-						m.update(tempEvent['startTimeZone'].encode('utf-8'))
-						if (tempEvent['end'] != ''):
-							m.update(tempEvent['end'].strftime("%A, %d. %B %Y %I:%M%p").encode('utf-8'))
-						m.update(tempEvent['endTimeZone'].encode('utf-8'))
-						digest = m.hexdigest()
+					try:
+						if (startDate >= windowBegin and startDate <= windowEnd and tempEvent['status'] == 'CONFIRMED'):
+							# Calculate digest
+							m = hashlib.md5()
+							m.update(tempEvent['summary'].encode('utf-8'))
+							m.update(tempEvent['location'].encode('utf-8'))
+							m.update(tempEvent['start'].strftime("%A, %d. %B %Y %I:%M%p").encode('utf-8'))
+							m.update(tempEvent['startTimeZone'].encode('utf-8'))
+							if (tempEvent['end'] != ''):
+								m.update(tempEvent['end'].strftime("%A, %d. %B %Y %I:%M%p").encode('utf-8'))
+							m.update(tempEvent['endTimeZone'].encode('utf-8'))
+							digest = m.hexdigest()
 
-						# Store event
-						if not (tempEvent['potentialInterview'] and tempEvent['start'].date() <= date.today()):
-							events[digest] = tempEvent
-					else:
-						logger.debug('Event not in window. startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
+							# Store event
+							if not (tempEvent['potentialInterview'] and tempEvent['start'].date() <= date.today()):
+								events[digest] = tempEvent
+						else:
+							logger.debug('Event not in window. startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
+					except Exception as e:
+						logger.error ('readSlateCalendar - Error parsing iCal Feed for calendar: : %s', calendar)
+						logger.error ('startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
+						logger.exception(e)
+
 
 				else: # We are in the middle of an event, check for a value we are tracking
 					if (l.property == 'SUMMARY'):
