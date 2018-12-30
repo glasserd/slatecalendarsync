@@ -703,7 +703,11 @@ def getGoogleCredentials(email_address, credential_dir):
 
 def googleToDateTime(date, convertToUTC=True):	
 	if (len(date) == 10): # Check if date is YYYY-MM-DD format
-		datef = date(int(date[0:4]), int(date[5:7]), int(date[8:10]))
+		try:
+			datef = date(int(date[0:4]), int(date[5:7]), int(date[8:10]))
+		except:
+			datef = date
+			logger.error("googleToDateTime: Unable to 10 character convert date %s", date)
 		return datef
 
 	else:

@@ -12,7 +12,7 @@ This program reads events from the Slate calendar and syncs them to a Google cal
 ## Prerequisites
 
 * Google API Credentials (https://console.developers.google.com/apis/)
-* Python 3.x
+* Python 3.6.x
 * pip (Python package manager)
 * Python modules:
     * httplib2
