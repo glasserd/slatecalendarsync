@@ -23,7 +23,7 @@ This program reads events from the Slate calendar and syncs them to a Google cal
  
 ## Setup
 
-1. Download Google API Secret and save in same directory as slatesync.py
+1. Download Google API Secret and save in same directory as `slatesync.py`. File name should be `client_secret.json`
 2. Update config.ini as desired
 
 ## Usage
@@ -35,7 +35,7 @@ python slatesync.py
 To set up a new calendar you need to call a URL with specific parameters:
 	
 Parameter: calendar  
-Value: User's email addressed
+Value: User's email address
 	
 Parameter: id  
 Value: The guid of the user in slate
