@@ -39,9 +39,7 @@ from logging.handlers import TimedRotatingFileHandler
 from urllib.parse import urlparse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pprint import pprint
-from datetime import datetime
-from datetime import date
-import datetime
+from datetime import date, datetime, timedelta
 
 # Email libraries
 import smtplib
@@ -155,12 +153,15 @@ logger.info('Found the following calendars: %s', calendars)
 
 def main():
 	logger.info('Start SlateSync')
+	logger.debug('Log level set to: %s', logger.getEffectiveLevel())
 	
 	errors = []
 	
 	# Calculate sync windowBegin
-	windowBegin = date.today() - datetime.timedelta(days=pastDays)
-	windowEnd = date.today() + datetime.timedelta(days=futureDays)
+	windowBegin = datetime.now(pytz.utc) - timedelta(days=pastDays)
+	windowBegin = windowBegin.replace(second=0, microsecond=0)
+	windowEnd = datetime.now(pytz.utc) + timedelta(days=futureDays)
+	windowEnd = windowEnd.replace(second=0, microsecond=0)
 	logger.info('Setting sync window. Window Begin: %s Window End: %s', windowBegin, windowEnd)
 	
 
@@ -218,7 +219,7 @@ def main():
 			
 			# Get Slate events
 			try:
-				slateEvents = readSlateCalendar(slateCalendar, windowBegin, windowEnd)
+				slateEvents = readSlateCalendar(googleCalendar, slateCalendar, windowBegin, windowEnd)
 			except:
 				print ('Unable to retrieve Slate Calendar ', slateCalendar)
 			else:
@@ -279,15 +280,15 @@ def main():
 							endChange = False
 							
 							# Slate does not return end date for all day events
-							if ( type(eventDetails['start']) == datetime.date and eventDetails['end'] == '' ): 
+							if ( type(eventDetails['start']) == date and eventDetails['end'] == '' ): 
 								endChange = False
 								
 							# Check to see if the start date is of type datetime but the end date is of type date. If so, make sure event is one hour long
-							elif ( type(eventDetails['start']) == datetime.datetime and type(eventDetails['end']) == datetime.date and googleToDateTime(googleEvent['end']) == (eventDetails['start'] + datetime.timedelta(hours=1))):
+							elif ( type(eventDetails['start']) == datetime and type(eventDetails['end']) == date and googleToDateTime(googleEvent['end']) == (eventDetails['start'] + timedelta(hours=1))):
 								endChange = False
 							
 							# No end time in Google, make sure end time is 1 hour after start time
-							elif ( eventDetails['end'] == '' and googleToDateTime(googleEvent['end']) == (eventDetails['start'] + datetime.timedelta(hours=1)) ):
+							elif ( eventDetails['end'] == '' and googleToDateTime(googleEvent['end']) == (eventDetails['start'] + timedelta(hours=1)) ):
 								endChange = False
 								
 							# Check to see if Google has end time by Slate does not
@@ -295,7 +296,7 @@ def main():
 								endChange = True
 								
 							# Check to see if the event ends before it starts. If so, make sure end time is 1 hour after start time
-							elif (eventDetails['end'] < eventDetails['start']  and googleToDateTime(googleEvent['end']) == (eventDetails['start'] + datetime.timedelta(hours=1)) ):
+							elif (eventDetails['end'] < eventDetails['start']  and googleToDateTime(googleEvent['end']) == (eventDetails['start'] + timedelta(hours=1)) ):
 								endChange = False
 							
 							elif (googleToDateTime(googleEvent['end']) != eventDetails['end']):
@@ -389,13 +390,17 @@ def main():
 	logger.info('Finish SlateSync')
 	
 	
-def readSlateCalendar(slateCalendar, windowBegin, windowEnd):
+def readSlateCalendar(calendar, slateCalendar, windowBegin, windowEnd):
+	logger.info ('readSlateCalendar - Starting method for calendar: %s', calendar)
+	logger.debug('test debug event')
+
 	r = requests.get(slateCalendar)
 	
 	if r.status_code != 200:
 		logger.error ('Unable to retrieve Slate Calendar %s. HTTP Status Code: %s', slateCalendar, r.status_code)
 		raise Exception('No Slate Calendar')
-		
+
+	logger.debug('readSlateCalendar - raw output from Slate: %s', r.text)	
 	
 	events = {}
 	tempEvent = {}
@@ -409,91 +414,97 @@ def readSlateCalendar(slateCalendar, windowBegin, windowEnd):
 		#print (str(i).ljust(3), " In Event:", str(inEvent).ljust(5), "EventStart:", str(l.eventStart()).ljust(5), "EventEnd:", str(l.eventEnd()).ljust(5), " Line: ", line)
 		#print (str(i).ljust(3), " Property:", str(l.property).ljust(20), "Attribute:", str(l.attribute).ljust(20), "Attribute Value:", str(l.attributeValue).ljust(20), "Value:", str(l.value).ljust(5), " Line: ", line)
 		
-		if (inEvent):
-			if (l.eventEnd()): # Event is over, write it to dictionary
-				inEvent = False
-			
-				# Check to see if start date is between range we are looking for
-				if (type(tempEvent['start']) == datetime.datetime):
-					startDate = tempEvent['start'].date()
-				else:
-					startDate = tempEvent['start']
-				
-				if (startDate >= windowBegin and startDate <= windowEnd and tempEvent['status'] == 'CONFIRMED'):
-					# Calculate digest
-					m = hashlib.md5()
-					m.update(tempEvent['summary'].encode('utf-8'))
-					m.update(tempEvent['location'].encode('utf-8'))
-					m.update(tempEvent['start'].strftime("%A, %d. %B %Y %I:%M%p").encode('utf-8'))
-					m.update(tempEvent['startTimeZone'].encode('utf-8'))
-					if (tempEvent['end'] != ''):
-						m.update(tempEvent['end'].strftime("%A, %d. %B %Y %I:%M%p").encode('utf-8'))
-					m.update(tempEvent['endTimeZone'].encode('utf-8'))
-					digest = m.hexdigest()
-					
-					# Store event
-					if not (tempEvent['potentialInterview'] and tempEvent['start'].date() <= date.today()):
-						events[digest] = tempEvent
-			
-			else: # We are in the middle of an event, check for a value we are tracking
-				if (l.property == 'SUMMARY'):
-					tempEvent['summary'] = html.unescape(removeICalEscape(l.value))
-					
-					if (tempEvent['summary'] == ONCAMPUS_INTERVIEW_TEXT_NOT_ASSIGNED):
-						tempEvent['summary'] = 'Potential ' + ONCAMPUS_INTERVIEW_TEXT_NOT_ASSIGNED
-						tempEvent['potentialInterview'] = True
-					
-				elif (l.property == 'STATUS'):
-					tempEvent['status'] = l.value
-				elif (l.property == 'LOCATION'):
-					tempEvent['location'] = removeICalEscape(l.value)
-				elif (l.property == 'DTSTART'):
-					year   = int (l.value[0:4])
-					month  = int (l.value[4:6])
-					day    = int (l.value[6:8])
-					if (l.attribute == 'VALUE' and l.attributeValue == 'DATE'): # Date object
-						tempEvent['start'] = datetime.date(year, month, day)
+		try: 
+			if (inEvent):
+				if (l.eventEnd()): # Event is over, write it to dictionary
+					inEvent = False
+
+					# Check to see if start date is between range we are looking for
+					if (type(tempEvent['start']) == date):
+						startDate = datetime.combine(tempEvent['start'], datetime.min.time())
 					else:
-						hour   = int (l.value[9:11])
-						minute = int (l.value[11:13])
-						second = int (l.value[13:15])
-						tempEvent['start'] = datetime.datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
-					if (l.attribute == 'TZID'):
-						tempEvent['startTimeZone'] = l.attributeValue
-						
-				elif (l.property == 'DTEND'):
-					year   = int (l.value[0:4])
-					month  = int (l.value[4:6])
-					day    = int (l.value[6:8])
-					if (l.attribute == 'VALUE' and l.attributeValue == 'DATE'): # Date object
-						tempEvent['end'] = datetime.date(year, month, day)
+						startDate = tempEvent['start']
+
+					if (startDate >= windowBegin and startDate <= windowEnd and tempEvent['status'] == 'CONFIRMED'):
+						# Calculate digest
+						m = hashlib.md5()
+						m.update(tempEvent['summary'].encode('utf-8'))
+						m.update(tempEvent['location'].encode('utf-8'))
+						m.update(tempEvent['start'].strftime("%A, %d. %B %Y %I:%M%p").encode('utf-8'))
+						m.update(tempEvent['startTimeZone'].encode('utf-8'))
+						if (tempEvent['end'] != ''):
+							m.update(tempEvent['end'].strftime("%A, %d. %B %Y %I:%M%p").encode('utf-8'))
+						m.update(tempEvent['endTimeZone'].encode('utf-8'))
+						digest = m.hexdigest()
+
+						# Store event
+						if not (tempEvent['potentialInterview'] and tempEvent['start'].date() <= date.today()):
+							events[digest] = tempEvent
 					else:
-						hour   = int (l.value[9:11])
-						minute = int (l.value[11:13])
-						second = int (l.value[13:15])
-						tempEvent['end'] = datetime.datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
-					
-					if (l.attribute == 'TZID'):
-						tempEvent['endTimeZone'] = l.attributeValue
+						logger.debug('Event not in window. startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
+
+				else: # We are in the middle of an event, check for a value we are tracking
+					if (l.property == 'SUMMARY'):
+						tempEvent['summary'] = html.unescape(removeICalEscape(l.value))
+
+						if (tempEvent['summary'] == ONCAMPUS_INTERVIEW_TEXT_NOT_ASSIGNED):
+							tempEvent['summary'] = 'Potential ' + ONCAMPUS_INTERVIEW_TEXT_NOT_ASSIGNED
+							tempEvent['potentialInterview'] = True
+
+					elif (l.property == 'STATUS'):
+						tempEvent['status'] = l.value
+					elif (l.property == 'LOCATION'):
+						tempEvent['location'] = removeICalEscape(l.value)
+					elif (l.property == 'DTSTART'):
+						year   = int (l.value[0:4])
+						month  = int (l.value[4:6])
+						day    = int (l.value[6:8])
+						if (l.attribute == 'VALUE' and l.attributeValue == 'DATE'): # Date object
+							tempEvent['start'] = date(year, month, day)
+						else:
+							hour   = int (l.value[9:11])
+							minute = int (l.value[11:13])
+							second = int (l.value[13:15])
+							tempEvent['start'] = datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
+						if (l.attribute == 'TZID'):
+							tempEvent['startTimeZone'] = l.attributeValue
+
+					elif (l.property == 'DTEND'):
+						year   = int (l.value[0:4])
+						month  = int (l.value[4:6])
+						day    = int (l.value[6:8])
+						if (l.attribute == 'VALUE' and l.attributeValue == 'DATE'): # Date object
+							tempEvent['end'] = date(year, month, day)
+						else:
+							hour   = int (l.value[9:11])
+							minute = int (l.value[11:13])
+							second = int (l.value[13:15])
+							tempEvent['end'] = datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
+
+						if (l.attribute == 'TZID'):
+							tempEvent['endTimeZone'] = l.attributeValue
 		
-		else: #Not in an event
-			if (l.eventStart()): # Check to see if this is the start of an event
-				inEvent = True
-				
-				tempEvent = {
-					'summary'			:'',
-					'location'			:'',
-					'status'			:'',
-					'start'				:'',
-					'startTimeZone'		:'',
-					'end'				:'',
-					'endTimeZone'		:'',
-					'potentialInterview': False,
-				}
+			else: #Not in an event
+				if (l.eventStart()): # Check to see if this is the start of an event
+					inEvent = True
+
+					tempEvent = {
+						'summary'			:'',
+						'location'			:'',
+						'status'			:'',
+						'start'				:'',
+						'startTimeZone'		:'',
+						'end'				:'',
+						'endTimeZone'		:'',
+						'potentialInterview': False,
+					}
+		except Exception as e:
+			logger.error ('readSlateCalendar - Error parsing iCal Feed for calendar: : %s', calendar)
+			logger.exception(e)
 	
 	#print ('Events')
 	#pprint (events)
-	
+	logger.info ('readSlateCalendar - Total Slate events for calendar %s: %s', calendar, len(events))
 	print ('Total Slate events: ', len(events) )
 	
 	return events
@@ -504,10 +515,8 @@ def readGoogleCalendar(service, calendar, windowBegin, windowEnd):
 	userEvents = {}
 	
 	# Calculate start and end dates for range search		
-	startDate = datetime.datetime.combine(windowBegin, datetime.datetime.min.time())
-	startDateFrmt = startDate.isoformat() + 'Z'
-	endDate = datetime.datetime.combine(windowEnd, datetime.datetime.min.time())
-	endDateFrmt = endDate.isoformat() + 'Z'
+	startDateFrmt = windowBegin.isoformat()
+	endDateFrmt = windowEnd.isoformat()
 	
 	try:
 		eventsResult = service.events().list(
@@ -586,35 +595,35 @@ def addEvent(service, calendar, slateId, summary, description, location, start, 
 
 	
 	# Check to see if this an all day event. If so set end date to start date
-	if (type(start) == datetime.date and end == ''): 
+	if (type(start) == date and end == ''): 
 		end = start
 	# Check to see if the start date is of type datetime but the end date is of type date. If so, assume event is one hour long
-	elif (type(start) == datetime.datetime and type(end) == datetime.date):
-		end = start + datetime.timedelta(hours=1)
+	elif (type(start) == datetime and type(end) == date):
+		end = start + timedelta(hours=1)
 		logger.warning ('Google Calendar: %s Start date inclues date & time but end date has no time associated with it. Assuming end is 1 hour after start. %s %s', calendar, start, summary)
 	# Check to see if there is a start time but no end time. If so, assume event is one hour long.
-	elif (type(start) == datetime.datetime and end == ''):
-		end = start + datetime.timedelta(hours=1)
+	elif (type(start) == datetime and end == ''):
+		end = start + timedelta(hours=1)
 		logger.warning ('Google Calendar: %s No end date provided. Assuming end is 1 hour after start. %s %s', calendar, start, summary)
 	# Check to see if end is of type datetime and start is of type date
-	elif (type(start) == datetime.date and type(end) == datetime.datetime):
+	elif (type(start) == date and type(end) == datetime):
 		logger.warning ('Google Calendar: %s End time provided, but no start time. Letting code throw error. %s %s', calendar, start, summary)
 	# Check to see if the event ends before it starts. If so, assume the event is 1 hour long
 	elif (end < start):
-		end = start + datetime.timedelta(hours=1)
+		end = start + timedelta(hours=1)
 		logger.warning ('Google Calendar: %s Event ends before it starts. Assuming end is 1 hour after start. %s %s', calendar, start, summary)
 		
 		
 	startIso = start.isoformat()
-	if (type(start) == datetime.datetime):
+	if (type(start) == datetime):
 		startType = 'dateTime'
 	else:
 		startType = 'date'		
 		
-	if (type(end) == datetime.datetime):
+	if (type(end) == datetime):
 		endType = 'dateTime'
 		endIso = end.isoformat()
-	elif (type(end) == datetime.date):
+	elif (type(end) == date):
 		endIso = end.isoformat()
 		endType = 'date'
 	else:
@@ -688,7 +697,7 @@ def getGoogleCredentials(email_address, credential_dir):
 
 def googleToDateTime(date, convertToUTC=True):	
 	if (len(date) == 10): # Check if date is YYYY-MM-DD format
-		datef = datetime.date(int(date[0:4]), int(date[5:7]), int(date[8:10]))
+		datef = date(int(date[0:4]), int(date[5:7]), int(date[8:10]))
 		return datef
 
 	else:
@@ -696,7 +705,7 @@ def googleToDateTime(date, convertToUTC=True):
 		tzf = date[19:].replace(':','')		
 		tdate = date[0:19] + tzf		
 		
-		datef = datetime.datetime.strptime(tdate,"%Y-%m-%dT%H:%M:%S%z")		
+		datef = datetime.strptime(tdate,"%Y-%m-%dT%H:%M:%S%z")		
 		if (convertToUTC == True):
 			datef = datef.astimezone(timezone('UCT'))
 		return datef
@@ -916,8 +925,8 @@ if __name__ == '__main__':
 		
 	# Check to see if we need to clear out all Slate events on a calendar
 	if flags.clear is not None:
-		windowBegin = date.today() - datetime.timedelta(days=1000)
-		windowEnd = date.today() + datetime.timedelta(days=1000)
+		windowBegin = date.today() - timedelta(days=1000)
+		windowEnd = date.today() + timedelta(days=1000)
 	
 		clear_calendar = (flags.clear).strip()
 		logger.info ('Clearing all events from: %s', clear_calendar)
