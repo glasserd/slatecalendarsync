@@ -23,8 +23,9 @@ This program reads events from the Slate calendar and syncs them to a Google cal
  
 ## Setup
 
-1. Download Google API Secret and save in same directory as `slatesync.py`. File name should be `client_secret.json`
-2. Update config.ini as desired
+1. Clone this repository. The most recent stable tag is 1.2.7. It is highly recommended that you clone using this tag. The most recent commit is the development branch. You clone from this at your own risk.
+2. Download Google API Secret and save in same directory as `slatesync.py`. File name should be `client_secret.json`
+3. Update config.ini as desired
 
 ## Usage
 
