@@ -15,11 +15,11 @@ This program reads events from the Slate calendar and syncs them to a Google cal
 * Python 3.x
 * pip (Python package manager)
 * Python modules:
-  * httplib2
-  * pytz
-  * urllib3
-  * google-api-python-client
-  * requests
+    * httplib2
+    * pytz
+    * urllib3
+    * google-api-python-client
+    * requests
  
 ## Setup
 
