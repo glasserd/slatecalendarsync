@@ -66,4 +66,4 @@ python slatesync.py -d email_address
 
 ## Notes
 		
-	Please send bugs and feature requests to glasserd@union.edu. There is no guarantee your need will be addressed, but I will consider all requests.
+Please send bugs and feature requests to glasserd@union.edu. There is no guarantee your need will be addressed, but I will consider all requests.
