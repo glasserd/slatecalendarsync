@@ -2,3 +2,4 @@ logs/
 client_secret.json
 calendar_list.json
 credentials/
+config.ini
