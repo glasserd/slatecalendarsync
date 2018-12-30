@@ -56,6 +56,7 @@ from apiclient import discovery
 import oauth2client
 from oauth2client import client
 from oauth2client import tools
+from oauth2client import file
 
 # Read Configuration File
 
@@ -858,7 +859,7 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 				
 				message = 'Succesfully added calendar ' + new_calendar
 				
-			except e:
+			except Exception as e:
 				logger.error('An error occurred: %s', e)
 				message = 'Error adding calendar.'
 			
