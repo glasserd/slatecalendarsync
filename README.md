@@ -19,6 +19,7 @@ This program reads events from the Slate calendar and syncs them to a Google cal
     * pytz
     * urllib3
     * google-api-python-client
+    * oauth2client
     * requests
  
 ## Setup
