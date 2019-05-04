@@ -345,7 +345,7 @@ def main():
 								eventColor = eventColorOther
 							
 							addError = addEvent(service, googleCalendar, eventId, eventDetails['summary'], '', eventDetails['location'], eventDetails['start'], eventDetails['startTimeZone'], eventDetails['end'], eventDetails['endTimeZone'], eventColor)
-							calendarModifications.append('Adding event: ' + eventDetails['start'].astimezone(timezone('America/New_York')).strftime("%B %d, %Y %I:%M %p") + ' - ' + eventDetails['summary'])
+							calendarModifications.append('Adding event: ' + formatDate(eventDetails['start']) + ' - ' + eventDetails['summary'])
 							if (addError != ''):
 								errors.append(addError)
 								
@@ -388,6 +388,15 @@ def main():
 	
 	#Finish
 	logger.info('Finish SlateSync')
+
+def formatDate(d):
+	f = ''
+	if (type(d) == date):
+		f = d.strftime("%B %d, %Y")
+	elif (type(d) == datetime):
+		f = d.astimezone(timezone('America/New_York')).strftime("%B %d, %Y %I:%M %p")
+	
+	return f
 	
 	
 def readSlateCalendar(calendar, slateCalendar, windowBegin, windowEnd):
@@ -704,10 +713,15 @@ def getGoogleCredentials(email_address, credential_dir):
 def googleToDateTime(date, convertToUTC=True):	
 	if (len(date) == 10): # Check if date is YYYY-MM-DD format
 		try:
-			datef = date(int(date[0:4]), int(date[5:7]), int(date[8:10]))
-		except:
+			year = date[0:4]			
+			month = date[5:7]
+			month = month.lstrip("0")
+			day = date[8:10]
+			day = day.lstrip("0")
+			datef = date(int(year), int(month), int(day))
+		except Exception as e:
 			datef = date
-			logger.error("googleToDateTime: Unable to 10 character convert date %s", date)
+			logger.error("googleToDateTime: Unable to convert 10 character date %s. Exception: %s", date, e)
 		return datef
 
 	else:
