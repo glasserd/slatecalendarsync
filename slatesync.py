@@ -710,24 +710,22 @@ def getGoogleCredentials(email_address, credential_dir):
 		print ('Storing credentials to ', credential_path)
 	return credentials
 
-def googleToDateTime(date, convertToUTC=True):	
-	if (len(date) == 10): # Check if date is YYYY-MM-DD format
+def googleToDateTime(date1, convertToUTC=True):	
+	if (len(date1) == 10): # Check if date is YYYY-MM-DD format
 		try:
-			year = date[0:4]			
-			month = date[5:7]
-			month = month.lstrip("0")
-			day = date[8:10]
-			day = day.lstrip("0")
+			year = date1[0:4]
+			month = date1[5:7]
+			day = date1[8:10]			
 			datef = date(int(year), int(month), int(day))
 		except Exception as e:
-			datef = date
-			logger.error("googleToDateTime: Unable to convert 10 character date %s. Exception: %s", date, e)
+			datef = date1
+			logger.error("googleToDateTime: Unable to convert 10 character date %s. Exception: %s", date1, e)			
 		return datef
 
 	else:
 		#Format:  2015-10-28T15:00:00-04:00
-		tzf = date[19:].replace(':','')		
-		tdate = date[0:19] + tzf		
+		tzf = date1[19:].replace(':','')		
+		tdate = date1[0:19] + tzf		
 		
 		datef = datetime.strptime(tdate,"%Y-%m-%dT%H:%M:%S%z")		
 		if (convertToUTC == True):
