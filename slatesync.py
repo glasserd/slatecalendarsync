@@ -159,9 +159,9 @@ def main():
 	
 	# Calculate sync windowBegin
 	windowBegin = datetime.now(pytz.utc) - timedelta(days=pastDays)
-	windowBegin = windowBegin.replace(second=0, microsecond=0)
+	windowBegin = windowBegin.replace(hour=0, minute=0, second=0, microsecond=0)
 	windowEnd = datetime.now(pytz.utc) + timedelta(days=futureDays)
-	windowEnd = windowEnd.replace(second=0, microsecond=0)
+	windowEnd = windowEnd.replace(hour=0, minute=0, second=0, microsecond=0)
 	logger.info('Setting sync window. Window Begin: %s Window End: %s', windowBegin, windowEnd)
 	
 
