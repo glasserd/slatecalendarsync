@@ -162,7 +162,9 @@ def main():
 	windowBegin = windowBegin.replace(hour=0, minute=0, second=0, microsecond=0)
 	windowEnd = datetime.now(pytz.utc) + timedelta(days=futureDays)
 	windowEnd = windowEnd.replace(hour=0, minute=0, second=0, microsecond=0)
-	logger.info('Setting sync window. Window Begin: %s Window End: %s', windowBegin, windowEnd)
+	windowGrace = datetime.now(pytz.utc) - timedelta(days=pastDays-1)
+	windowGrace = windowGrace.replace(hour=0, minute=0, second=0, microsecond=0)
+	logger.info('Setting sync window. Window Begin: %s Window End: %s Window Grace: %s', windowBegin, windowEnd, windowGrace)
 	
 
 	# Loop through calendars
@@ -234,6 +236,8 @@ def main():
 					try:
 					
 						if (eventId in googleEvents): #Check if event exists in Google Calendar
+							logger.debug('Event %s from calendar %s already exists in Google Calendar. Look for changes.', eventId, googleCalendar)
+
 							googleEvent = googleEvents[eventId]
 							googleEventKeys.remove(eventId)
 							
@@ -304,50 +308,57 @@ def main():
 							
 							
 							if (summaryChange or locationChange or startChange or endChange or colorChange):
-								#print ('Event has changed.', summaryChange, locationChange, startChange, endChange, colorChange)
-								#print(eventId, eventDetails)
-								#
-								#print ('Slate Summary   ', eventDetails['summary'])
-								#print ('Google Summary  ',  googleEvent['summary'])
-								#print ('Slate location  ', eventDetails['location'])
-								#print ('Google location ',  googleEvent['location'])
-								#print ('Slate start     ', eventDetails['start'], type(eventDetails['start']))
-								#print ('Google start    ',  googleEvent['start'], type(googleEvent['start']))
-								#print ('Slate end       ', eventDetails['end'], type(eventDetails['end']))
-								#print ('Google end      ',  googleEvent['end'], type(googleEvent['end']))
+								logger.debug ('Event has changed. summaryChange: %s locationChange: %s startChange: %s endChange: %s colorChange: %s', summaryChange, locationChange, startChange, endChange, colorChange)
+								logger.debug(eventId, eventDetails)
+								
+								logger.debug ('Slate Summary   %s', eventDetails['summary'])
+								logger.debug ('Google Summary  %s', googleEvent['summary'])
+								logger.debug ('Slate location  %s', eventDetails['location'])
+								logger.debug ('Google location %s', googleEvent['location'])
+								logger.debug ('Slate start     %s %s', eventDetails['start'], type(eventDetails['start']))
+								logger.debug ('Google start    %s %s', googleEvent['start'], type(googleEvent['start']))
+								logger.debug ('Slate end       %s %s', eventDetails['end'], type(eventDetails['end']))
+								logger.debug ('Google end      %s %s', googleEvent['end'], type(googleEvent['end']))
+								logger.debug ('Window grace    %s', windowGrace)
 								
 								
-								#Event has changed. Delete old event and recreate.							
-								deleteError = deleteEvent(service, googleCalendar, googleEvent['eventId'])
-								
-								calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvent['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
-								if (deleteError != ''):
-									errors.append(deleteError)
-								
-								addError = addEvent(service, googleCalendar, eventId, eventDetails['summary'], '', eventDetails['location'], eventDetails['start'], eventDetails['startTimeZone'], eventDetails['end'], eventDetails['endTimeZone'], eventColor)
-								calendarModifications.append('Adding event: ' + eventDetails['start'].astimezone(timezone('America/New_York')).strftime("%B %d, %Y %I:%M %p") + ' - ' + eventDetails['summary'])
-								if (addError != ''):
-									errors.append(addError)
+								if (eventDetails['start'] < windowGrace):
+									logger.debug('Event %s from calendar %s occurs during grace period. Make no changes to event', eventId, googleCalendar)
+								else:
+									#Event has changed. Delete old event and recreate.							
+									deleteError = deleteEvent(service, googleCalendar, googleEvent['eventId'])
+									
+									calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvent['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
+									if (deleteError != ''):
+										errors.append(deleteError)
+									
+									addError = addEvent(service, googleCalendar, eventId, eventDetails['summary'], '', eventDetails['location'], eventDetails['start'], eventDetails['startTimeZone'], eventDetails['end'], eventDetails['endTimeZone'], eventColor)
+									calendarModifications.append('Adding event: ' + eventDetails['start'].astimezone(timezone('America/New_York')).strftime("%B %d, %Y %I:%M %p") + ' - ' + eventDetails['summary'])
+									if (addError != ''):
+										errors.append(addError)
 								
 							
 						else:
-							#print ('Adding event ', eventId, eventDetails)
-							
-							# Determine if event is on campus
-							onCampusEvent = False
-							if (eventDetails['location'].startswith(onCampusInterviewLocation)):
-								onCampusEvent = True
+							if (eventDetails['start'] < windowGrace):
+									logger.debug('Event %s from calendar %s occurs during grace period. Do not add event.', eventId, googleCalendar)
+							else:
+								logger.debug('Event %s from calendar %s does not exists in Google Calendar. Add event.', eventId, googleCalendar)
 								
-							#Set eventColor
-							if (onCampusEvent):
-								eventColor = eventColorOnCampus
-							else: 
-								eventColor = eventColorOther
-							
-							addError = addEvent(service, googleCalendar, eventId, eventDetails['summary'], '', eventDetails['location'], eventDetails['start'], eventDetails['startTimeZone'], eventDetails['end'], eventDetails['endTimeZone'], eventColor)
-							calendarModifications.append('Adding event: ' + formatDate(eventDetails['start']) + ' - ' + eventDetails['summary'])
-							if (addError != ''):
-								errors.append(addError)
+								# Determine if event is on campus
+								onCampusEvent = False
+								if (eventDetails['location'].startswith(onCampusInterviewLocation)):
+									onCampusEvent = True
+									
+								#Set eventColor
+								if (onCampusEvent):
+									eventColor = eventColorOnCampus
+								else: 
+									eventColor = eventColorOther
+								
+								addError = addEvent(service, googleCalendar, eventId, eventDetails['summary'], '', eventDetails['location'], eventDetails['start'], eventDetails['startTimeZone'], eventDetails['end'], eventDetails['endTimeZone'], eventColor)
+								calendarModifications.append('Adding event: ' + formatDate(eventDetails['start']) + ' - ' + eventDetails['summary'])
+								if (addError != ''):
+									errors.append(addError)
 								
 					except Exception as e:
 							logger.error ('Error processing event. Event ID: : %s', eventId)
@@ -355,13 +366,17 @@ def main():
 					
 				#Remove Google Events that are no longer present in Slate Calendar
 				for eventId in googleEventKeys:
-					logger.info('Deleting event %s from calendar %s. Event no longer in Slate calendar.', eventId, googleCalendar)
-				
-					deleteError = deleteEvent(service, googleCalendar, googleEvents[eventId]['eventId'])
+					if (googleToDateTime(googleEvents[eventId]['start'], False) < windowGrace):
+						logger.debug('Event %s from calendar %s occurs during grace period. Make no changes to event.', eventId, googleCalendar)
+
+					else:
+						logger.info('Deleting event %s from calendar %s. Event no longer in Slate calendar.', eventId, googleCalendar)
 					
-					calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvents[eventId]['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
-					if (deleteError != ''):
-						errors.append(deleteError)
+						deleteError = deleteEvent(service, googleCalendar, googleEvents[eventId]['eventId'])
+						
+						calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvents[eventId]['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
+						if (deleteError != ''):
+							errors.append(deleteError)
 						
 				if (len(calendarModifications) > 0):
 					
@@ -449,6 +464,7 @@ def readSlateCalendar(calendar, slateCalendar, windowBegin, windowEnd):
 
 							# Store event
 							if not (tempEvent['potentialInterview'] and tempEvent['start'].date() <= date.today()):
+								# TODO event Id is currently stored as a hash. It looks like slate is now returning the GUID for the event. That may be a better option.
 								events[digest] = tempEvent
 						else:
 							logger.debug('Event not in window. startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
