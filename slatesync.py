@@ -7,8 +7,8 @@
 	Union College
 	Schenectady, NY
 	
-	Version 1.3.0
-	Released 5/6/19
+	Version 1.4.0
+	Released 7/31/19
 	
 	
 	Copyright 2019 Union College NY
@@ -75,6 +75,7 @@ try:
 
 	emailFrom = config['Emails']['EmailFromAddress']
 	emailTo = config['Emails']['ErrorEmailAddress'].split(',')
+	emailEventChanges = config['Emails'].getboolean('EmailEventChanges')
 	
 	syncServer = config['Servers']['SyncServer']
 	syncServerPort = config['Servers']['syncServerPort']
@@ -306,7 +307,7 @@ def main():
 							elif (googleToDateTime(googleEvent['end']) != eventDetails['end']):
 								endChange = True
 							
-							
+							# Check to see if event changed
 							if (summaryChange or locationChange or startChange or endChange or colorChange):
 								logger.debug ('Event has changed. summaryChange: %s locationChange: %s startChange: %s endChange: %s colorChange: %s', summaryChange, locationChange, startChange, endChange, colorChange)
 								logger.debug(eventId, eventDetails)
@@ -327,15 +328,17 @@ def main():
 								else:
 									#Event has changed. Delete old event and recreate.							
 									deleteError = deleteEvent(service, googleCalendar, googleEvent['eventId'])
-									
-									calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvent['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
 									if (deleteError != ''):
 										errors.append(deleteError)
 									
 									addError = addEvent(service, googleCalendar, eventId, eventDetails['summary'], '', eventDetails['location'], eventDetails['start'], eventDetails['startTimeZone'], eventDetails['end'], eventDetails['endTimeZone'], eventColor)
-									calendarModifications.append('Adding event: ' + eventDetails['start'].astimezone(timezone('America/New_York')).strftime("%B %d, %Y %I:%M %p") + ' - ' + eventDetails['summary'])
 									if (addError != ''):
 										errors.append(addError)
+
+									# Only send notification if summary or time change
+									if (summaryChange or startChange or endChange):										
+										calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvent['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
+										calendarModifications.append('Adding event: ' + eventDetails['start'].astimezone(timezone('America/New_York')).strftime("%B %d, %Y %I:%M %p") + ' - ' + eventDetails['summary'])
 								
 							
 						else:
@@ -378,7 +381,7 @@ def main():
 						if (deleteError != ''):
 							errors.append(deleteError)
 						
-				if (len(calendarModifications) > 0):
+				if (len(calendarModifications) > 0 and emailEventChanges):
 					
 					msg = MIMEText('\n'.join(calendarModifications))
 					msg['Subject'] = 'Slate Calendar Updates'
@@ -465,7 +468,7 @@ def readSlateCalendar(calendar, slateCalendar, windowBegin, windowEnd):
 							# Store event
 							if not (tempEvent['potentialInterview'] and tempEvent['start'].date() <= date.today()):
 								# TODO event Id is currently stored as a hash. It looks like slate is now returning the GUID for the event. That may be a better option.
-								events[digest] = tempEvent
+								events[tempEvent['slateGUID']] = tempEvent
 						else:
 							logger.debug('Event not in window. startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
 					except Exception as e:
@@ -475,6 +478,8 @@ def readSlateCalendar(calendar, slateCalendar, windowBegin, windowEnd):
 
 
 				else: # We are in the middle of an event, check for a value we are tracking
+					if (l.property == 'UID'):
+						tempEvent['slateGUID'] = removeICalEscape(l.value)
 					if (l.property == 'SUMMARY'):
 						tempEvent['summary'] = html.unescape(removeICalEscape(l.value))
 
