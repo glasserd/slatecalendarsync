@@ -7,7 +7,7 @@
 	Union College
 	Schenectady, NY
 	
-	Version 1.4.1
+	Version 1.4.2
 	Released 8/1/19
 	
 	
@@ -27,7 +27,6 @@ import argparse
 import json
 import sys
 import time
-import hashlib
 import requests
 import html
 import configparser
@@ -367,9 +366,9 @@ def main():
 							logger.error ('Error processing event. Event ID: : %s', eventId)
 							logger.exception(e)
 					
-				#Remove Google Events that are no longer present in Slate Calendar
-				try:
-					for eventId in googleEventKeys:
+				#Remove Google Events that are no longer present in Slate Calendar				
+				for eventId in googleEventKeys:
+					try:
 						if (googleToDateTime(googleEvents[eventId]['start'], False) < windowGrace):
 							logger.debug('Event %s from calendar %s occurs during grace period. Make no changes to event.', eventId, googleCalendar)
 
@@ -381,9 +380,9 @@ def main():
 							calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvents[eventId]['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
 							if (deleteError != ''):
 								errors.append(deleteError)
-				except Exception as e:
-					logger.error ('Error deleting event. Event ID: : %s', eventId)
-					logger.exception(e)
+					except Exception as e:
+						logger.error ('Error deleting event. Event ID: : %s', eventId)
+						logger.exception(e)
 						
 				if (len(calendarModifications) > 0 and emailEventChanges):
 					
@@ -458,20 +457,8 @@ def readSlateCalendar(calendar, slateCalendar, windowBegin, windowEnd):
 
 					try:
 						if (startDate >= windowBegin and startDate <= windowEnd and tempEvent['status'] == 'CONFIRMED'):
-							# Calculate digest
-							m = hashlib.md5()
-							m.update(tempEvent['summary'].encode('utf-8'))
-							m.update(tempEvent['location'].encode('utf-8'))
-							m.update(tempEvent['start'].strftime("%A, %d. %B %Y %I:%M%p").encode('utf-8'))
-							m.update(tempEvent['startTimeZone'].encode('utf-8'))
-							if (tempEvent['end'] != ''):
-								m.update(tempEvent['end'].strftime("%A, %d. %B %Y %I:%M%p").encode('utf-8'))
-							m.update(tempEvent['endTimeZone'].encode('utf-8'))
-							digest = m.hexdigest()
-
 							# Store event
 							if not (tempEvent['potentialInterview'] and tempEvent['start'].date() <= date.today()):
-								# TODO event Id is currently stored as a hash. It looks like slate is now returning the GUID for the event. That may be a better option.
 								events[tempEvent['slateGUID']] = tempEvent
 						else:
 							logger.debug('Event not in window. startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
