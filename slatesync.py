@@ -7,8 +7,8 @@
 	Union College
 	Schenectady, NY
 	
-	Version 1.4.0
-	Released 7/31/19
+	Version 1.4.1
+	Released 8/1/19
 	
 	
 	Copyright 2019 Union College NY
@@ -368,18 +368,22 @@ def main():
 							logger.exception(e)
 					
 				#Remove Google Events that are no longer present in Slate Calendar
-				for eventId in googleEventKeys:
-					if (googleToDateTime(googleEvents[eventId]['start'], False) < windowGrace):
-						logger.debug('Event %s from calendar %s occurs during grace period. Make no changes to event.', eventId, googleCalendar)
+				try:
+					for eventId in googleEventKeys:
+						if (googleToDateTime(googleEvents[eventId]['start'], False) < windowGrace):
+							logger.debug('Event %s from calendar %s occurs during grace period. Make no changes to event.', eventId, googleCalendar)
 
-					else:
-						logger.info('Deleting event %s from calendar %s. Event no longer in Slate calendar.', eventId, googleCalendar)
-					
-						deleteError = deleteEvent(service, googleCalendar, googleEvents[eventId]['eventId'])
+						else:
+							logger.info('Deleting event %s from calendar %s. Event no longer in Slate calendar.', eventId, googleCalendar)
 						
-						calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvents[eventId]['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
-						if (deleteError != ''):
-							errors.append(deleteError)
+							deleteError = deleteEvent(service, googleCalendar, googleEvents[eventId]['eventId'])
+							
+							calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvents[eventId]['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
+							if (deleteError != ''):
+								errors.append(deleteError)
+				except Exception as e:
+					logger.error ('Error deleting event. Event ID: : %s', eventId)
+					logger.exception(e)
 						
 				if (len(calendarModifications) > 0 and emailEventChanges):
 					
