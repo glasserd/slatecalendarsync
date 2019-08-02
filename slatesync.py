@@ -7,7 +7,7 @@
 	Union College
 	Schenectady, NY
 	
-	Version 1.4.2
+	Version 1.4.3
 	Released 8/1/19
 	
 	
@@ -335,7 +335,7 @@ def main():
 										errors.append(addError)
 
 									# Only send notification if summary or time change
-									if (summaryChange or startChange or endChange):										
+									if (summaryChange or startChange):										
 										calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvent['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
 										calendarModifications.append('Adding event: ' + eventDetails['start'].astimezone(timezone('America/New_York')).strftime("%B %d, %Y %I:%M %p") + ' - ' + eventDetails['summary'])
 								
