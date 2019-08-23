@@ -683,7 +683,7 @@ def deleteEvent(service, googleApiBackoff, calendar, eventId):
 	except HttpError as err:
 		if err.resp.status in [403]:
 			logger.info('Google Calendar: %s Could not delete event: %s 403 error received. Backing off for %s seconds', calendar, eventId, googleApiBackoff)
-			time.sleep(googleApiBackoff)
+			time.sleep(int(googleApiBackoff))
 
 		logger.error ('Google Calendar: %s Could not delete event: %s Exception: %s', calendar, eventId, e)
 		deleteError = 'Google Calendar: ' + str(calendar) + ' Could not delete event: '  + str(eventId) + 'Exception:' + str(e)
