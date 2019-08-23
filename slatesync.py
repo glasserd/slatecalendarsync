@@ -7,8 +7,8 @@
 	Union College
 	Schenectady, NY
 	
-	Version 1.4.3
-	Released 8/1/19
+	Version 1.5.0
+	Released 8/23/19
 	
 	
 	Copyright 2019 Union College NY
@@ -39,6 +39,7 @@ from urllib.parse import urlparse
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pprint import pprint
 from datetime import date, datetime, timedelta
+from os import curdir, sep
 
 # Email libraries
 import smtplib
@@ -50,6 +51,7 @@ import pytz
 
 # Google libraries
 from apiclient import discovery
+from googleapiclient.errors import HttpError
 import oauth2client
 from oauth2client import client
 from oauth2client import tools
@@ -79,10 +81,15 @@ try:
 	syncServer = config['Servers']['SyncServer']
 	syncServerPort = config['Servers']['syncServerPort']
 	slateServer = config['Servers']['SlateServer']
+	slateEventWebService = config['Servers']['SlateEventWebService']
+	slateEventWebServiceUsername = config['Servers']['SlateEventWebServiceUsername']
+	slateEventWebServicePassword = config['Servers']['SlateEventWebServicePassword']
 	
 	syncServerUrl = syncServer
+
 	
 	onCampusInterviewLocation = config['Settings']['OnCampusInterviewLocation']
+	googleApiBackoff = config['Settings']['GoogleApiBackoff']
 	
 except KeyError as err:
 	print ("Unsuccessful read of configuration file config.ini")
@@ -110,8 +117,6 @@ try:
 	import argparse
 	parser = argparse.ArgumentParser(description='Union College Slate - Google Calendar Sync',epilog="Created by David Glasser at Union College", parents=[tools.argparser])
 	group = parser.add_mutually_exclusive_group()
-	group.add_argument("-a", "--add", type=str, metavar='email_address',
-                    help="Add additional Google calendar")
 	group.add_argument("-d", "--delete", type=str, metavar='email_address',
                     help="Delete Google calendar")
 	group.add_argument("-c", "--clear", type=str, metavar='email_address',
@@ -169,7 +174,7 @@ def main():
 
 	# Loop through calendars
 	for googleCalendar, calendarInfo in calendars.items():
-		slateCalendar = calendarInfo['calendarUrl']
+		slateCalendar = googleCalendar
 		try:
 			eventColorOnCampus = calendarInfo['eventColorOnCampus']
 		except:
@@ -217,11 +222,10 @@ def main():
 			googleEvents = readGoogleCalendar(service, googleCalendar, windowBegin, windowEnd)
 			logger.info ('Google Calendar: %s Slate events in Google Calendar: %s', googleCalendar, googleEvents)
 			googleEventKeys = list(googleEvents.keys())
-			#print(googleEvents)
 			
 			# Get Slate events
 			try:
-				slateEvents = readSlateCalendar(googleCalendar, slateCalendar, windowBegin, windowEnd)
+				slateEvents = readSlateCalendarWebService(googleCalendar, slateEventWebService, slateEventWebServiceUsername, slateEventWebServicePassword, windowBegin, windowEnd)
 			except:
 				print ('Unable to retrieve Slate Calendar ', slateCalendar)
 			else:
@@ -239,18 +243,7 @@ def main():
 							logger.debug('Event %s from calendar %s already exists in Google Calendar. Look for changes.', eventId, googleCalendar)
 
 							googleEvent = googleEvents[eventId]
-							googleEventKeys.remove(eventId)
-							
-							#print ('Slate Summary   ', eventDetails['summary'])
-							#print ('Google Summary  ',  googleEvent['summary'])
-							#print ('Slate location  ', eventDetails['location'])
-							#print ('Google location ',  googleEvent['location'])
-							#print ('Slate start     ', eventDetails['start'], type(eventDetails['start']))
-							#print ('Google start    ',  googleEvent['start'], type(googleEvent['start']))
-							#print ('Slate end       ', eventDetails['end'], type(eventDetails['end']))
-							#print ('Google end      ',  googleEvent['end'], type(googleEvent['end']))
-							#print ('Google color    ',  googleEvent['colorId'], type(googleEvent['colorId']))
-							
+							googleEventKeys.remove(eventId)							
 							
 							# Determine if event is on campus
 							onCampusEvent = False
@@ -279,6 +272,10 @@ def main():
 							colorChange = False
 							if (googleEvent['colorId'] != eventColor):
 								colorChange = True
+
+							descriptionChange = False
+							if (googleEvent['description'] != eventDetails['description']):
+								descriptionChange = True
 		
 							## Check to see if the end of the event changed. 
 							endChange = False
@@ -307,8 +304,8 @@ def main():
 								endChange = True
 							
 							# Check to see if event changed
-							if (summaryChange or locationChange or startChange or endChange or colorChange):
-								logger.debug ('Event has changed. summaryChange: %s locationChange: %s startChange: %s endChange: %s colorChange: %s', summaryChange, locationChange, startChange, endChange, colorChange)
+							if (summaryChange or locationChange or startChange or endChange or colorChange or descriptionChange):
+								logger.debug ('Event has changed. summaryChange: %s locationChange: %s descriptionChange: %s startChange: %s endChange: %s colorChange: %s', summaryChange, locationChange, descriptionChange, startChange, endChange, colorChange)
 								logger.debug(eventId, eventDetails)
 								
 								logger.debug ('Slate Summary   %s', eventDetails['summary'])
@@ -322,45 +319,40 @@ def main():
 								logger.debug ('Window grace    %s', windowGrace)
 								
 								
-								if (eventDetails['start'] < windowGrace):
-									logger.debug('Event %s from calendar %s occurs during grace period. Make no changes to event', eventId, googleCalendar)
-								else:
-									#Event has changed. Delete old event and recreate.							
-									deleteError = deleteEvent(service, googleCalendar, googleEvent['eventId'])
-									if (deleteError != ''):
-										errors.append(deleteError)
-									
-									addError = addEvent(service, googleCalendar, eventId, eventDetails['summary'], '', eventDetails['location'], eventDetails['start'], eventDetails['startTimeZone'], eventDetails['end'], eventDetails['endTimeZone'], eventColor)
-									if (addError != ''):
-										errors.append(addError)
 
-									# Only send notification if summary or time change
-									if (summaryChange or startChange):										
-										calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvent['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
-										calendarModifications.append('Adding event: ' + eventDetails['start'].astimezone(timezone('America/New_York')).strftime("%B %d, %Y %I:%M %p") + ' - ' + eventDetails['summary'])
+								#Event has changed. Delete old event and recreate.							
+								deleteError = deleteEvent(service, googleApiBackoff, googleCalendar, googleEvent['eventId'])
+								if (deleteError != ''):
+									errors.append(deleteError)
 								
-							
-						else:
-							if (eventDetails['start'] < windowGrace):
-									logger.debug('Event %s from calendar %s occurs during grace period. Do not add event.', eventId, googleCalendar)
-							else:
-								logger.debug('Event %s from calendar %s does not exists in Google Calendar. Add event.', eventId, googleCalendar)
-								
-								# Determine if event is on campus
-								onCampusEvent = False
-								if (eventDetails['location'].startswith(onCampusInterviewLocation)):
-									onCampusEvent = True
-									
-								#Set eventColor
-								if (onCampusEvent):
-									eventColor = eventColorOnCampus
-								else: 
-									eventColor = eventColorOther
-								
-								addError = addEvent(service, googleCalendar, eventId, eventDetails['summary'], '', eventDetails['location'], eventDetails['start'], eventDetails['startTimeZone'], eventDetails['end'], eventDetails['endTimeZone'], eventColor)
-								calendarModifications.append('Adding event: ' + formatDate(eventDetails['start']) + ' - ' + eventDetails['summary'])
+								addError = addEvent(service, googleCalendar, eventId, eventDetails['summary'], eventDetails['location'], eventDetails['description'], eventDetails['start'], eventDetails['end'], eventColor)
 								if (addError != ''):
 									errors.append(addError)
+
+								# Only send notification if summary or time change
+								if (summaryChange or startChange):										
+									calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvent['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
+									calendarModifications.append('Adding event: ' + eventId + ' - ' + eventDetails['summary'])
+							
+							
+						else:
+							logger.debug('Event %s from calendar %s does not exists in Google Calendar. Add event.', eventId, googleCalendar)
+							
+							# Determine if event is on campus
+							onCampusEvent = False
+							if (eventDetails['location'].startswith(onCampusInterviewLocation)):
+								onCampusEvent = True
+								
+							#Set eventColor
+							if (onCampusEvent):
+								eventColor = eventColorOnCampus
+							else: 
+								eventColor = eventColorOther
+							
+							addError = addEvent(service, googleCalendar, eventId, eventDetails['summary'], eventDetails['location'], eventDetails['description'], eventDetails['start'], eventDetails['end'], eventColor)
+							calendarModifications.append('Adding event: ' + formatDate(eventDetails['start']) + ' - ' + eventDetails['summary'])
+							if (addError != ''):
+								errors.append(addError)
 								
 					except Exception as e:
 							logger.error ('Error processing event. Event ID: : %s', eventId)
@@ -375,7 +367,7 @@ def main():
 						else:
 							logger.info('Deleting event %s from calendar %s. Event no longer in Slate calendar.', eventId, googleCalendar)
 						
-							deleteError = deleteEvent(service, googleCalendar, googleEvents[eventId]['eventId'])
+							deleteError = deleteEvent(service, googleApiBackoff, googleCalendar, googleEvents[eventId]['eventId'])
 							
 							calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvents[eventId]['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
 							if (deleteError != ''):
@@ -418,123 +410,114 @@ def formatDate(d):
 		f = d.astimezone(timezone('America/New_York')).strftime("%B %d, %Y %I:%M %p")
 	
 	return f
-	
-	
-def readSlateCalendar(calendar, slateCalendar, windowBegin, windowEnd):
-	logger.info ('readSlateCalendar - Starting method for calendar: %s', calendar)
-	logger.debug('test debug event')
 
-	r = requests.get(slateCalendar)
+def readSlateCalendarWebService (calendar, slateEventWebService, slateEventWebServiceUsername, slateEventWebServicePassword, windowBegin, windowEnd):
+	logger.info ('readSlateCalendarWebService - Starting method for calendar: %s', calendar)
+
+	r = requests.get(slateEventWebService + calendar, auth=(slateEventWebServiceUsername, slateEventWebServicePassword))
 	
 	if r.status_code != 200:
-		logger.error ('Unable to retrieve Slate Calendar %s. HTTP Status Code: %s', slateCalendar, r.status_code)
+		logger.error ('Unable to retrieve Slate Calendar %s. HTTP Status Code: %s', calendar, r.status_code)
 		raise Exception('No Slate Calendar')
 
-	logger.debug('readSlateCalendar - raw output from Slate: %s', r.text)	
-	
 	events = {}
-	tempEvent = {}
-	
-	i = 0
-	inEvent = False
-	for line in r.text.splitlines():
-		i = i + 1
-		l = ICalLine(line)
-		
-		#print (str(i).ljust(3), " In Event:", str(inEvent).ljust(5), "EventStart:", str(l.eventStart()).ljust(5), "EventEnd:", str(l.eventEnd()).ljust(5), " Line: ", line)
-		#print (str(i).ljust(3), " Property:", str(l.property).ljust(20), "Attribute:", str(l.attribute).ljust(20), "Attribute Value:", str(l.attributeValue).ljust(20), "Value:", str(l.value).ljust(5), " Line: ", line)
-		
-		try: 
-			if (inEvent):
-				if (l.eventEnd()): # Event is over, write it to dictionary
-					inEvent = False
+	for event in r.json()['row']:
+		try:
+			logger.debug('readSlateCalendarWebService - reading event for %s: %s', calendar, event)
+			tempEvent = {
+				'summary'			:'',
+				'location'			:'',
+				'start'				:'',
+				'end'				:'',
+				'description'		:'',
+			}
 
-					# Check to see if start date is between range we are looking for
-					if (type(tempEvent['start']) == date):
-						startDate = datetime.combine(tempEvent['start'], datetime.min.time(), pytz.utc)
+			if 'Title' in event:
+				if event['Type'] == 'Interview':
+					if 'Interviewee' in event:
+						tempEvent['summary'] = event['Title'] + ' (' + event['Interviewee'] + ')'
 					else:
-						startDate = tempEvent['start']
+						tempEvent['summary'] = event['Title']
+				else:
+					tempEvent['summary'] = event['Title'] + ' (' + event['Attendees'] + ')'
+			
+			if 'Location' in event:
+				tempEvent['location'] = event['Location']
 
-					try:
-						if (startDate >= windowBegin and startDate <= windowEnd and tempEvent['status'] == 'CONFIRMED'):
-							# Store event
-							if not (tempEvent['potentialInterview'] and tempEvent['start'].date() <= date.today()):
-								events[tempEvent['slateGUID']] = tempEvent
-						else:
-							logger.debug('Event not in window. startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
-					except Exception as e:
-						logger.error ('readSlateCalendar - Error parsing iCal Feed for calendar: : %s', calendar)
-						logger.error ('startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
-						logger.exception(e)
+			if 'Address' in event:
+				tempEvent['location'] = tempEvent['location'] + event['Address']
+
+			if 'Description' in event:
+				tempEvent['description'] = event['Description'] 
+
+			offset = int(event['TimezoneOffset'])
+
+			if 'Start' not in event:
+				# We can't create an event without a start time
+				continue
+			else:
+				# Example format: 2019-08-28T12:00:00
+				start = event['Start']
+
+				year   = int (start[0:4])
+				month  = int (start[5:7])
+				day    = int (start[8:10])
+
+				if 'T' in start:
+					# Event has a date and a time
+					hour   = int (start[11:13])
+					minute = int (start[14:16])
+					second = int (start[17:19])
+					tempDateTime = datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
+
+					tempDateTime = tempDateTime - timedelta(minutes=offset)
+
+					tempEvent['start'] = tempDateTime
+
+				else:
+					# Event is a date object
+					tempEvent['start'] = date(year, month, day)
+
+			if 'End' in event:
+				# Example format: 2019-08-28T12:00:00
+				end = event['End']
+
+				year   = int (end[0:4])
+				month  = int (end[5:7])
+				day    = int (end[8:10])
+
+				if 'T' in end:
+					# Event has a date and a time
+					hour   = int (end[11:13])
+					minute = int (end[14:16])
+					second = int (end[17:19])
+					tempDateTime = datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
+
+					tempDateTime = tempDateTime - timedelta(minutes=offset)
+
+					tempEvent['end'] = tempDateTime
+
+				else:
+					# Event is a date object
+					tempEvent['end'] = date(year, month, day)
+
+			# TODO If event is an interview and occurs in the past delete it from the calendar
+
+			# TODO Check to see if event is in sync window
 
 
-				else: # We are in the middle of an event, check for a value we are tracking
-					if (l.property == 'UID'):
-						tempEvent['slateGUID'] = removeICalEscape(l.value)
-					if (l.property == 'SUMMARY'):
-						tempEvent['summary'] = html.unescape(removeICalEscape(l.value))
+			logger.debug('readSlateCalendarWebService - processed event for %s: %s', calendar, tempEvent)
+			events[event['GUID']] = tempEvent
 
-						if (tempEvent['summary'] == ONCAMPUS_INTERVIEW_TEXT_NOT_ASSIGNED):
-							tempEvent['summary'] = 'Potential ' + ONCAMPUS_INTERVIEW_TEXT_NOT_ASSIGNED
-							tempEvent['potentialInterview'] = True
-
-					elif (l.property == 'STATUS'):
-						tempEvent['status'] = l.value
-					elif (l.property == 'LOCATION'):
-						tempEvent['location'] = removeICalEscape(l.value)
-					elif (l.property == 'DTSTART'):
-						year   = int (l.value[0:4])
-						month  = int (l.value[4:6])
-						day    = int (l.value[6:8])
-						if (l.attribute == 'VALUE' and l.attributeValue == 'DATE'): # Date object
-							tempEvent['start'] = date(year, month, day)
-						else:
-							hour   = int (l.value[9:11])
-							minute = int (l.value[11:13])
-							second = int (l.value[13:15])
-							tempEvent['start'] = datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
-						if (l.attribute == 'TZID'):
-							tempEvent['startTimeZone'] = l.attributeValue
-
-					elif (l.property == 'DTEND'):
-						year   = int (l.value[0:4])
-						month  = int (l.value[4:6])
-						day    = int (l.value[6:8])
-						if (l.attribute == 'VALUE' and l.attributeValue == 'DATE'): # Date object
-							tempEvent['end'] = date(year, month, day)
-						else:
-							hour   = int (l.value[9:11])
-							minute = int (l.value[11:13])
-							second = int (l.value[13:15])
-							tempEvent['end'] = datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
-
-						if (l.attribute == 'TZID'):
-							tempEvent['endTimeZone'] = l.attributeValue
-		
-			else: #Not in an event
-				if (l.eventStart()): # Check to see if this is the start of an event
-					inEvent = True
-
-					tempEvent = {
-						'summary'			:'',
-						'location'			:'',
-						'status'			:'',
-						'start'				:'',
-						'startTimeZone'		:'',
-						'end'				:'',
-						'endTimeZone'		:'',
-						'potentialInterview': False,
-					}
 		except Exception as e:
-			logger.error ('readSlateCalendar - Error parsing iCal Feed for calendar: : %s', calendar)
+			logger.error ('Could not read Slate event from Slate Calendar Feed. Slate ID: : %s', event['GUID'])
 			logger.exception(e)
-	
-	#print ('Events')
-	#pprint (events)
-	logger.info ('readSlateCalendar - Total Slate events for calendar %s: %s', calendar, len(events))
-	print ('Total Slate events: ', len(events) )
-	
+
+
+	logger.info ('readSlateCalendarWebService - Total Slate events for calendar %s: %s', calendar, len(events))
+
 	return events
+
 	
 def readGoogleCalendar(service, calendar, windowBegin, windowEnd):
 	logger.info ('readGoogleCalendar - Starting method for calendar: %s', calendar)
@@ -569,14 +552,19 @@ def readGoogleCalendar(service, calendar, windowBegin, windowEnd):
 						try:
 							if slateID in userEvents:
 								logger.warning ('Google Calendar: %s Duplicate event found in Google Calendar. Deleting... SlateID =  %s', calendar, slateID)
-								deleteEvent(service, calendar, event['id'])
+								deleteEvent(service, googleApiBackoff, calendar, event['id'])
 						
 							else:
+								description = ''
+								if 'description' in event:
+									description = event['description']
+
 								#Event is a Slate Event. Add it to the dictionary
 								userEvents[slateID] = {
 									'eventId'		: event['id'],
 									'summary'		: event['summary'],
 									'location'		: '',
+									'description'	: description,
 									'start'			: '',
 									'startTimeZone'	: '',
 									'end'			: '',
@@ -615,7 +603,7 @@ def readGoogleCalendar(service, calendar, windowBegin, windowEnd):
 	return userEvents
 		
 
-def addEvent(service, calendar, slateId, summary, description, location, start, startTimeZone, end, endTimeZone, eventColor):
+def addEvent(service, calendar, slateId, summary, location, description, start, end, eventColor):
 	logger.debug('addEvent method. Calendar = [%s] slateId = [%s] summary = [%s] description = [%s] location = [%s] start = [%s] end = [%s]', calendar, slateId, summary, description, location, start, end)
 
 	addError = ''
@@ -663,11 +651,9 @@ def addEvent(service, calendar, slateId, summary, description, location, start, 
 		'location': location,
 		'start': {
 			startType: startIso, #'2015-10-15T13:00:00'
-			'timeZone': startTimeZone, #'America/New_York'
 		},
 		'end': {
 			endType: endIso,
-			'timeZone': endTimeZone,
 		},
 		"extendedProperties": {
 			"private": {
@@ -689,11 +675,19 @@ def addEvent(service, calendar, slateId, summary, description, location, start, 
 	return addError
 	
 	
-def deleteEvent(service, calendar, eventId):
+def deleteEvent(service, googleApiBackoff, calendar, eventId):
 	deleteError = ''
 	try:
 		service.events().delete(calendarId='primary', eventId=eventId).execute()
 		logger.info ('Google Calendar: %s Event deleted. Event Id: %s', calendar, eventId)
+	except HttpError as err:
+		if err.resp.status in [403]:
+			logger.info('Google Calendar: %s Could not delete event: %s 403 error received. Backing off for %s seconds', calendar, eventId, googleApiBackoff)
+			time.sleep(googleApiBackoff)
+
+		logger.error ('Google Calendar: %s Could not delete event: %s Exception: %s', calendar, eventId, e)
+		deleteError = 'Google Calendar: ' + str(calendar) + ' Could not delete event: '  + str(eventId) + 'Exception:' + str(e)
+
 	except Exception as e:
 		logger.error ('Google Calendar: %s Could not delete event: %s Exception: %s', calendar, eventId, e)
 		deleteError = 'Google Calendar: ' + str(calendar) + ' Could not delete event: '  + str(eventId) + 'Exception:' + str(e)
@@ -743,42 +737,6 @@ def googleToDateTime(date1, convertToUTC=True):
 		if (convertToUTC == True):
 			datef = datef.astimezone(timezone('UCT'))
 		return datef
-	
-def removeICalEscape(value):
-	return value.replace('\\','')
-
-
-class ICalLine:
-	def __init__(self, line):
-		self.line = line
-		
-		components = line.split(':')
-		self.property = components[0]
-		self.value = components[1]
-		self.attribute = ''
-		self.attributeValue = ''
-		
-		components = self.property.split(';')
-		if (len(components) == 2):
-			self.property = components[0]
-			
-			attrComp = components[1].split('=')
-			self.attribute = attrComp[0]
-			self.attributeValue = attrComp[1]
-		
-		
-	def eventStart(self):
-		if self.property == 'BEGIN' and self.value == 'VEVENT':
-			return True
-		else:
-			return False
-			
-	def eventEnd(self):
-		if self.property == 'END' and self.value == 'VEVENT':
-			return True
-		else:
-			return False
-
 			
 # Manage Dictionary of Slate Calendars
 def calendarExists(calendar):
@@ -787,8 +745,8 @@ def calendarExists(calendar):
 	else:
 		return False
 		
-def createCalendarUrl(id):
-	url = slateServer + '/manage/event/?user=' + id + '&output=ical'
+def createCalendarUrl(id, signature):
+	url = slateServer + '/manage/event/ical?cmd=feed&identity=' + id + '&user=' + id + '&signature=' + signature
 	return url
 
 def addCalendar(new_calendar):
@@ -846,13 +804,12 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 		if self.path.startswith('/?calendar='):
 			# Initial page entered by user		
 			new_calendar = parameters['calendar'][0]
-			calendar_url = createCalendarUrl(parameters['id'][0])
 			
 			if not calendarExists(new_calendar):
 				flow = client.flow_from_clientsecrets(CLIENT_SECRET_FILE, SCOPES, redirect_uri=syncServerUrl)
 				flow.user_agent = APPLICATION_NAME
 				flow.params['access_type'] = 'offline'
-				flow.params['state'] = calendar_url
+				flow.params['state'] = new_calendar
 				auth_uri = flow.step1_get_authorize_url()
 				
 				self.send_response(302)
@@ -863,7 +820,7 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 			else:
 				message = 'Calendar ' + new_calendar + ' already exists'
 				print (message)
-			
+
 		elif self.path.startswith('/?error='):
 			message = 'Error occured while requesting authorization from Google.'
 			
@@ -889,7 +846,7 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 				print('calendar', new_calendar)
 				
 				with lock:
-					calendars[new_calendar] = {'calendarUrl':calendar_url}
+					calendars[new_calendar] = {'eventColorOnCampus':'','eventColorOther':''}
 					f = open(calendar_list_file, 'w')
 					json.dump(calendars, f)
 					f.close()
@@ -942,13 +899,6 @@ if __name__ == '__main__':
 
 	# Create lock object
 	lock = threading.Lock()
-	
-	# Check to see if we need to add a new calendar
-	if flags.add is not None:
-		new_calendar = (flags.add).strip()
-		logger.info ('Adding new calendar: %s', new_calendar)		
-		addCalendar(new_calendar)
-		sys.exit()
 		
 	# Check to see if we need to delete a calendar
 	if flags.delete is not None:
@@ -974,7 +924,7 @@ if __name__ == '__main__':
 			googleEvents = readGoogleCalendar(service, clear_calendar, windowBegin, windowEnd)
 		
 			for event, eventDetails in googleEvents.items():
-				deleteEvent(service, clear_calendar, eventDetails['eventId'])
+				deleteEvent(service, googleApiBackoff, clear_calendar, eventDetails['eventId'])
 			
 			logger.info ('Calendar %s has been cleared.', clear_calendar)
 			print ('Calendar ', clear_calendar, ' has been cleared.')

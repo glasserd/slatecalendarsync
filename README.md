@@ -60,11 +60,6 @@ To print a list of available commands:
 python slatesync.py -h
 ```
 
-To add a calendar to be synced:
-```
-python slatesync.py -a email_address
-```
-
 To delete a calendar that is currently being synced:
 ```
 python slatesync.py -d email_address

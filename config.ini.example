@@ -41,11 +41,17 @@ SyncInterval = 300
 #
 # SyncServer - The URL of the server running this program.
 # SlateServer - The URL of your Slate instance (everything before /manage)
+# SlateEventWebService - The URL of the web service endpoint that contains your events
 [Servers]
 SyncServer = http://localhost:8080/
 SyncServerPort = 8080
 SlateServer = 
+SlateEventWebService = 
+SlateEventWebServiceUsername = 
+SlateEventWebServicePassword = 
 
 # General Settings
+# GoogleApiBackoff - When 403 error received (too many requests) wait this many seconds before trying next request
 [Settings]
 OnCampusInterviewLocation = 
+GoogleApiBackoff = 10
