@@ -450,7 +450,11 @@ def readSlateCalendarWebService (calendar, slateEventWebService, slateEventWebSe
 			if 'Description' in event:
 				tempEvent['description'] = event['Description'] 
 
-			offset = int(event['TimezoneOffset'])
+			if 'TimezoneOffset' in event:
+				offset = int(event['TimezoneOffset'])
+			else:
+				offset = 0
+				logger.warning('readSlateCalendarWebService - no timezone for %s: %s', calendar, event)
 
 			if 'Start' not in event:
 				# We can't create an event without a start time
