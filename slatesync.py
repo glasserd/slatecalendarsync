@@ -361,7 +361,11 @@ def main():
 				#Remove Google Events that are no longer present in Slate Calendar				
 				for eventId in googleEventKeys:
 					try:
-						if (googleToDateTime(googleEvents[eventId]['start'], False) < windowGrace):
+						start = googleToDateTime(googleEvents[eventId]['start'], False)
+						if (isinstance(start, datetime)):
+							start = start.date()
+							
+						if (start < windowGrace.date()):
 							logger.debug('Event %s from calendar %s occurs during grace period. Make no changes to event.', eventId, googleCalendar)
 
 						else:
