@@ -805,25 +805,18 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 		parameters = (urllib.parse.parse_qs(parsed.query))
 		message = ''
 				
-		if self.path.startswith('/?calendar='):
+		if self.path.startswith('/sync'):
 			# Initial page entered by user		
-			new_calendar = parameters['calendar'][0]
+			flow = client.flow_from_clientsecrets(CLIENT_SECRET_FILE, SCOPES, redirect_uri=syncServerUrl)
+			flow.user_agent = APPLICATION_NAME
+			flow.params['access_type'] = 'offline'
+			auth_uri = flow.step1_get_authorize_url()
 			
-			if not calendarExists(new_calendar):
-				flow = client.flow_from_clientsecrets(CLIENT_SECRET_FILE, SCOPES, redirect_uri=syncServerUrl)
-				flow.user_agent = APPLICATION_NAME
-				flow.params['access_type'] = 'offline'
-				flow.params['state'] = new_calendar
-				auth_uri = flow.step1_get_authorize_url()
-				
-				self.send_response(302)
-				self.send_header('Location', auth_uri)
-				self.end_headers()
-				return
+			self.send_response(302)
+			self.send_header('Location', auth_uri)
+			self.end_headers()
+			return
 					
-			else:
-				message = 'Calendar ' + new_calendar + ' already exists'
-				print (message)
 
 		elif self.path.startswith('/?error='):
 			message = 'Error occured while requesting authorization from Google.'
@@ -846,21 +839,25 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 			try:
 				user_info = user_info_service.userinfo().get().execute()
 				new_calendar = user_info.get('email')
-				print('calendar', new_calendar)
 				
-				with lock:
-					calendars[new_calendar] = {'eventColorOnCampus':'','eventColorOther':''}
-					f = open(calendar_list_file, 'w')
-					json.dump(calendars, f)
-					f.close()
-										
-					credential_file = new_calendar + '.json'
-					credential_path = os.path.join(credential_dir, credential_file)
-					storage = oauth2client.file.Storage(credential_path)
-					storage.put(credentials)
-					print ('Storing credentials to ', credential_path)
+				if not calendarExists(new_calendar):
 				
-				message = 'Succesfully added calendar ' + new_calendar
+					with lock:
+						calendars[new_calendar] = {'eventColorOnCampus':'','eventColorOther':''}
+						f = open(calendar_list_file, 'w')
+						json.dump(calendars, f)
+						f.close()
+											
+						credential_file = new_calendar + '.json'
+						credential_path = os.path.join(credential_dir, credential_file)
+						storage = oauth2client.file.Storage(credential_path)
+						storage.put(credentials)
+						print ('Storing credentials to ', credential_path)
+					
+					message = 'Succesfully added calendar ' + new_calendar
+				
+				else:
+					message = 'Calendar already exists: ' + new_calendar
 				
 			except Exception as e:
 				logger.error('An error occurred: %s', e)
