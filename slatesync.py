@@ -830,13 +830,12 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 			
 		elif 'calendarlist' in self.path:
 			message = ''
-			for googleCalendar, calendarInfo in calendars.items():
+			for googleCalendar in sorted(calendars):
 				message += googleCalendar + '<br />'
 			
 		elif 'code' in self.path:
 			# Page redirected back from auth server
 			auth_code = parameters['code'][0]
-			calendar_url = parameters['state'][0]
 			flow = client.flow_from_clientsecrets(CLIENT_SECRET_FILE, SCOPES, redirect_uri=syncServerUrl)
 			credentials = flow.step2_exchange(auth_code)
 			
