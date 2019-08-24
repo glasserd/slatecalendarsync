@@ -753,34 +753,12 @@ def createCalendarUrl(id, signature):
 	url = slateServer + '/manage/event/ical?cmd=feed&identity=' + id + '&user=' + id + '&signature=' + signature
 	return url
 
-def addCalendar(new_calendar):
-	if new_calendar in calendars:
-		message = ('Calendar ' + new_calendar + ' already exists.')
-		logger.info (message)
-		print (message)
-		return message
-	else:		
-		slateUrl = input('Enter Slate Calendar URL: ')		
-	
-		credentials = getGoogleCredentials(new_calendar, credential_dir)
-		
-		with lock:
-			calendars[new_calendar] = {'calendarUrl':slateUrl}
-			f = open(calendar_list_file, 'w')
-			json.dump(calendars, f)
-			f.close()
-		
-		message = ('Calendar ' + new_calendar + ' added.')
-		logger.info (message)
-		print (message)
-		return message
-
 def deleteCalendar(delete_calendar):
 	if delete_calendar in calendars:
 		with lock:
 			del calendars[delete_calendar]
 			f = open(calendar_list_file, 'w')
-			json.dump(calendars, f)
+			json.dump(calendars, f, indent=4, sort_keys=True)
 			f.close()
 				
 			credential_file = delete_calendar + '.json'
@@ -845,7 +823,7 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 					with lock:
 						calendars[new_calendar] = {'eventColorOnCampus':'','eventColorOther':''}
 						f = open(calendar_list_file, 'w')
-						json.dump(calendars, f)
+						json.dump(calendars, f, indent=4, sort_keys=True)
 						f.close()
 											
 						credential_file = new_calendar + '.json'
