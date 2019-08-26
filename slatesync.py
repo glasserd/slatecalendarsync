@@ -510,7 +510,7 @@ def readSlateCalendarWebService (calendar, slateEventWebService, slateEventWebSe
 					tempEvent['end'] = date(year, month, day)
 
 			# If event is an interview and occurs in the past delete it from the calendar
-			if event['Type'] == 'Interview' and event['Attendees'] == '0' and tempEvent['start'].date() < datetime.now().date():
+			if event['Type'] == 'Interview' and event['Attendees'] == '0' and tempEvent['start'].date() <= datetime.now().date():
 				logger.info('readSlateCalendarWebService - Removing unbooked expired interview %s for calendar %s', event['GUID'], calendar)
 				continue
 
