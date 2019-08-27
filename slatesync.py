@@ -514,11 +514,26 @@ def readSlateCalendarWebService (calendar, slateEventWebService, slateEventWebSe
 				logger.info('readSlateCalendarWebService - Removing unbooked expired interview %s for calendar %s', event['GUID'], calendar)
 				continue
 
-			# TODO Check to see if event is in sync window
+			# Check to see if event is in sync window
+			if (type(tempEvent['start']) == date):
+				startDate = datetime.combine(tempEvent['start'], datetime.min.time(), pytz.utc)
+			else:
+				startDate = tempEvent['start']
+
+			try:
+				if (startDate >= windowBegin and startDate <= windowEnd):
+					# Store event					
+					events[event['GUID']] = tempEvent
+				else:
+					logger.debug('Event %s not in window. startDate: %s windowBegin: %s windowEnd: %s', event['GUID'], startDate, windowBegin, windowEnd)
+			except Exception as e:
+				logger.error ('readSlateCalendar - Error parsing Slate event feed for calendar: : %s', calendar)
+				logger.error ('startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
+				logger.exception(e)
 
 
 			logger.debug('readSlateCalendarWebService - processed event for %s: %s', calendar, tempEvent)
-			events[event['GUID']] = tempEvent
+			
 
 		except Exception as e:
 			logger.error ('Could not read Slate event from Slate Calendar Feed. Slate ID: : %s', event['GUID'])
