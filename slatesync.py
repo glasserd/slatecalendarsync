@@ -332,7 +332,7 @@ def main():
 								# Only send notification if summary or time change
 								if (summaryChange or startChange):										
 									calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvent['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
-									calendarModifications.append('Adding event: ' + eventDetails['start'].strftime("%B %d, %Y %I:%M %p") + ' - ' + eventDetails['summary'])
+									calendarModifications.append('Adding event: ' + formatDate(eventDetails['start']) + ' - ' + eventDetails['summary'])
 							
 							
 						else:
