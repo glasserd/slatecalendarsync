@@ -7,8 +7,8 @@
 	Union College
 	Schenectady, NY
 	
-	Version 1.5.0
-	Released 8/23/19
+	Version 1.5.1
+	Released 8/31/19
 	
 	
 	Copyright 2019 Union College NY
@@ -511,7 +511,7 @@ def readSlateCalendarWebService (calendar, slateEventWebService, slateEventWebSe
 
 			# If event is an interview and occurs in the past delete it from the calendar
 			if event['Type'] == 'Interview' and event['Attendees'] == '0' and tempEvent['start'].date() <= datetime.now().date():
-				logger.info('readSlateCalendarWebService - Removing unbooked expired interview %s for calendar %s', event['GUID'], calendar)
+				logger.debug('readSlateCalendarWebService - Removing unbooked expired interview %s for calendar %s', event['GUID'], calendar)
 				continue
 
 			# Check to see if event is in sync window
