@@ -7,8 +7,8 @@
 	Union College
 	Schenectady, NY
 	
-	Version 1.5.1
-	Released 8/31/19
+	Version 1.5.2
+	Released 9/5/19
 	
 	
 	Copyright 2019 Union College NY
@@ -88,6 +88,7 @@ try:
 	syncServerUrl = syncServer
 
 	
+	openInterviewLabel = config['Settings']['OpenInterviewLabel']
 	onCampusInterviewLocation = config['Settings']['OnCampusInterviewLocation']
 	googleApiBackoff = config['Settings']['GoogleApiBackoff']
 	
@@ -440,6 +441,8 @@ def readSlateCalendarWebService (calendar, slateEventWebService, slateEventWebSe
 				if event['Type'] == 'Interview':
 					if 'Interviewee' in event:
 						tempEvent['summary'] = event['Title'] + ' (' + event['Interviewee'] + ')'
+					elif openInterviewLabel != '':
+						tempEvent['summary'] = event['Title'] + ' (' + openInterviewLabel + ')'
 					else:
 						tempEvent['summary'] = event['Title']
 				else:

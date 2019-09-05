@@ -51,7 +51,9 @@ SlateEventWebServiceUsername =
 SlateEventWebServicePassword = 
 
 # General Settings
+# OpenInterviewLabel - Optional. If populated labels open interviews with specified value.
 # GoogleApiBackoff - When 403 error received (too many requests) wait this many seconds before trying next request
 [Settings]
+OpenInterviewLabel = 
 OnCampusInterviewLocation = 
 GoogleApiBackoff = 10
