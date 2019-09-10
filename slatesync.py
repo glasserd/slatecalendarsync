@@ -261,6 +261,18 @@ def main():
 							summaryChange = False
 							if (googleEvent['summary'] != eventDetails['summary']):
 								summaryChange = True
+
+							# Check to see if the attendee count changed
+							attendeeChange = False
+							if (summaryChange and eventDetails['type'] == 'Event'):
+								googleEventIndex = googleEvent['summary'].rfind('(')
+								slateEventIndex = eventDetails['summary'].rfind('(')
+								if (googleEvent['summary'][0:googleEventIndex] == eventDetails['summary'][0:slateEventIndex]):
+									logger.debug ('Event attendance has changed. Event ID: %s', eventId)
+									attendeeChange = True
+									
+
+							# Check for location change
 							
 							locationChange = False
 							if (googleEvent['location'] != eventDetails['location']):
@@ -331,7 +343,7 @@ def main():
 									errors.append(addError)
 
 								# Only send notification if summary or time change
-								if (summaryChange or startChange):										
+								if ((summaryChange and eventDetails['type'] == 'Interview') or (summaryChange and not attendeeChange) or startChange):										
 									calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvent['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
 									calendarModifications.append('Adding event: ' + formatDate(eventDetails['start']) + ' - ' + eventDetails['summary'])
 							
@@ -430,11 +442,12 @@ def readSlateCalendarWebService (calendar, slateEventWebService, slateEventWebSe
 		try:
 			logger.debug('readSlateCalendarWebService - reading event for %s: %s', calendar, event)
 			tempEvent = {
-				'summary'			:'',
-				'location'			:'',
-				'start'				:'',
-				'end'				:'',
-				'description'		:'',
+				'summary'			: '',
+				'location'			: '',
+				'start'				: '',
+				'end'				: '',
+				'description'		: '',
+				'type'				: event['Type'],
 			}
 
 			if 'Title' in event:
