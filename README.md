@@ -24,10 +24,10 @@ This program reads events from the Slate calendar and syncs them to a Google cal
  
 ## Setup
 
-1. Clone this repository. The most recent stable tag is 1.5.2. It is highly recommended that you clone using this tag. Development commits are stored in the master branch, using the latest commit from this branch is at your own risk. After you clone the repository you can get to a specific release with these commands:
+1. Clone this repository. The most recent stable tag is 1.5.3. It is highly recommended that you clone using this tag. Development commits are stored in the master branch, using the latest commit from this branch is at your own risk. After you clone the repository you can get to a specific release with these commands:
     ```
     git fetch --all --tags --prune
-    git checkout tags/1.5.2
+    git checkout tags/1.5.3
     ```
 2. Create a query in Slate that will feed your calendar events. You should use the configurable join form query base.
 
@@ -36,7 +36,7 @@ This program reads events from the Slate calendar and syncs them to a Google cal
     <param id="calendar" type="varchar" />
     ```
 
-    Exports:
+    Exports (names must match exactly):
     - GUID
     - Type
     - Title
