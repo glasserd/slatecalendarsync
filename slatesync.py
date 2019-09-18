@@ -82,6 +82,7 @@ try:
 	syncServerPort = config['Servers']['syncServerPort']
 	slateServer = config['Servers']['SlateServer']
 	slateEventWebService = config['Servers']['SlateEventWebService']
+	slateEventWebServiceStops = config['Servers']['SlateEventWebServiceStops']
 	slateEventWebServiceUsername = config['Servers']['SlateEventWebServiceUsername']
 	slateEventWebServicePassword = config['Servers']['SlateEventWebServicePassword']
 	
@@ -226,7 +227,7 @@ def main():
 			
 			# Get Slate events
 			try:
-				slateEvents = readSlateCalendarWebService(googleCalendar, slateEventWebService, slateEventWebServiceUsername, slateEventWebServicePassword, windowBegin, windowEnd)
+				slateEvents = readSlateCalendarWebService(googleCalendar, slateEventWebService, slateEventWebServiceStops, slateEventWebServiceUsername, slateEventWebServicePassword, windowBegin, windowEnd)
 			except:
 				print ('Unable to retrieve Slate Calendar ', slateCalendar)
 			else:
@@ -428,132 +429,141 @@ def formatDate(d):
 	
 	return f
 
-def readSlateCalendarWebService (calendar, slateEventWebService, slateEventWebServiceUsername, slateEventWebServicePassword, windowBegin, windowEnd):
+def readSlateCalendarWebService (calendar, slateEventWebService, slateEventWebServiceStops, slateEventWebServiceUsername, slateEventWebServicePassword, windowBegin, windowEnd):
 	logger.info ('readSlateCalendarWebService - Starting method for calendar: %s', calendar)
 
-	r = requests.get(slateEventWebService + calendar, auth=(slateEventWebServiceUsername, slateEventWebServicePassword))
-	
-	if r.status_code != 200:
-		logger.error ('Unable to retrieve Slate Calendar %s. HTTP Status Code: %s', calendar, r.status_code)
-		raise Exception('No Slate Calendar')
-
 	events = {}
-	for event in r.json()['row']:
-		try:
-			logger.debug('readSlateCalendarWebService - reading event for %s: %s', calendar, event)
-			tempEvent = {
-				'summary'			: '',
-				'location'			: '',
-				'start'				: '',
-				'end'				: '',
-				'description'		: '',
-				'type'				: event['Type'],
-			}
 
-			if 'Title' in event:
-				if event['Type'] == 'Interview':
-					if 'Interviewee' in event:
-						tempEvent['summary'] = event['Title'] + ' (' + event['Interviewee'] + ')'
-					elif openInterviewLabel != '':
-						tempEvent['summary'] = event['Title'] + ' (' + openInterviewLabel + ')'
-					else:
-						tempEvent['summary'] = event['Title']
-				else:
-					tempEvent['summary'] = event['Title'] + ' (' + event['Attendees'] + ')'
-			
-			if 'Location' in event:
-				tempEvent['location'] = event['Location']
+	webServices = [slateEventWebService]
+	if (slateEventWebServiceStops != ''):
+		webServices.append(slateEventWebServiceStops)
 
-			if 'Address' in event:
-				tempEvent['location'] = tempEvent['location'] + event['Address']
+	for ws in webServices:
+		r = requests.get(ws + calendar, auth=(slateEventWebServiceUsername, slateEventWebServicePassword))
+		
+		if r.status_code != 200:
+			logger.error ('Unable to retrieve Slate Calendar %s. HTTP Status Code: %s', calendar, r.status_code)
+			raise Exception('No Slate Calendar')
 
-			if 'Description' in event:
-				tempEvent['description'] = event['Description'] 
-
-			if 'TimezoneOffset' in event:
-				offset = int(event['TimezoneOffset'])
-			else:
-				offset = 0
-				logger.warning('readSlateCalendarWebService - no timezone for %s: %s', calendar, event['GUID'])
-
-			if 'Start' not in event:
-				# We can't create an event without a start time
-				continue
-			else:
-				# Example format: 2019-08-28T12:00:00
-				start = event['Start']
-
-				year   = int (start[0:4])
-				month  = int (start[5:7])
-				day    = int (start[8:10])
-
-				if 'T' in start:
-					# Event has a date and a time
-					hour   = int (start[11:13])
-					minute = int (start[14:16])
-					second = int (start[17:19])
-					tempDateTime = datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
-
-					tempDateTime = tempDateTime - timedelta(minutes=offset)
-
-					tempEvent['start'] = tempDateTime
-
-				else:
-					# Event is a date object
-					tempEvent['start'] = date(year, month, day)
-
-			if 'End' in event:
-				# Example format: 2019-08-28T12:00:00
-				end = event['End']
-
-				year   = int (end[0:4])
-				month  = int (end[5:7])
-				day    = int (end[8:10])
-
-				if 'T' in end:
-					# Event has a date and a time
-					hour   = int (end[11:13])
-					minute = int (end[14:16])
-					second = int (end[17:19])
-					tempDateTime = datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
-
-					tempDateTime = tempDateTime - timedelta(minutes=offset)
-
-					tempEvent['end'] = tempDateTime
-
-				else:
-					# Event is a date object
-					tempEvent['end'] = date(year, month, day)
-
-			# If event is an interview and occurs in the past delete it from the calendar
-			if event['Type'] == 'Interview' and event['Attendees'] == '0' and tempEvent['start'].date() <= datetime.now().date():
-				logger.debug('readSlateCalendarWebService - Removing unbooked expired interview %s for calendar %s', event['GUID'], calendar)
-				continue
-
-			# Check to see if event is in sync window
-			if (type(tempEvent['start']) == date):
-				startDate = datetime.combine(tempEvent['start'], datetime.min.time(), pytz.utc)
-			else:
-				startDate = tempEvent['start']
-
+		
+		for event in r.json()['row']:
 			try:
-				if (startDate >= windowBegin and startDate <= windowEnd):
-					# Store event					
-					events[event['GUID']] = tempEvent
+				logger.debug('readSlateCalendarWebService - reading event for %s: %s', calendar, event)
+				tempEvent = {
+					'summary'			: '',
+					'location'			: '',
+					'start'				: '',
+					'end'				: '',
+					'description'		: '',
+					'type'				: event['Type'],
+				}
+
+				if 'Title' in event:
+					if event['Type'] == 'Interview':
+						if 'Interviewee' in event:
+							tempEvent['summary'] = event['Title'] + ' (' + event['Interviewee'] + ')'
+						elif openInterviewLabel != '':
+							tempEvent['summary'] = event['Title'] + ' (' + openInterviewLabel + ')'
+						else:
+							tempEvent['summary'] = event['Title']
+					elif event['Type'] == 'Stop':
+						tempEvent['summary'] = event['Title']
+					else:
+						tempEvent['summary'] = event['Title'] + ' (' + event['Attendees'] + ')'
+				
+				if 'Location' in event:
+					tempEvent['location'] = event['Location']
+
+				if 'Address' in event:
+					tempEvent['location'] = tempEvent['location'] + event['Address']
+
+				if 'Description' in event:
+					tempEvent['description'] = event['Description'] 
+
+				if 'TimezoneOffset' in event:
+					offset = int(event['TimezoneOffset'])
 				else:
-					logger.debug('Event %s not in window. startDate: %s windowBegin: %s windowEnd: %s', event['GUID'], startDate, windowBegin, windowEnd)
+					offset = 0
+					logger.warning('readSlateCalendarWebService - no timezone for %s: %s', calendar, event['GUID'])
+
+				if 'Start' not in event:
+					# We can't create an event without a start time
+					continue
+				else:
+					# Example format: 2019-08-28T12:00:00
+					start = event['Start']
+
+					year   = int (start[0:4])
+					month  = int (start[5:7])
+					day    = int (start[8:10])
+
+					if 'T' in start:
+						# Event has a date and a time
+						hour   = int (start[11:13])
+						minute = int (start[14:16])
+						second = int (start[17:19])
+						tempDateTime = datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
+
+						tempDateTime = tempDateTime - timedelta(minutes=offset)
+
+						tempEvent['start'] = tempDateTime
+
+					else:
+						# Event is a date object
+						tempEvent['start'] = date(year, month, day)
+
+				if 'End' in event:
+					# Example format: 2019-08-28T12:00:00
+					end = event['End']
+
+					year   = int (end[0:4])
+					month  = int (end[5:7])
+					day    = int (end[8:10])
+
+					if 'T' in end:
+						# Event has a date and a time
+						hour   = int (end[11:13])
+						minute = int (end[14:16])
+						second = int (end[17:19])
+						tempDateTime = datetime(year, month, day, hour, minute, second, tzinfo=pytz.utc)
+
+						tempDateTime = tempDateTime - timedelta(minutes=offset)
+
+						tempEvent['end'] = tempDateTime
+
+					else:
+						# Event is a date object
+						tempEvent['end'] = date(year, month, day)
+
+				# If event is an interview and occurs in the past delete it from the calendar
+				if event['Type'] == 'Interview' and event['Attendees'] == '0' and tempEvent['start'].date() <= datetime.now().date():
+					logger.debug('readSlateCalendarWebService - Removing unbooked expired interview %s for calendar %s', event['GUID'], calendar)
+					continue
+
+				# Check to see if event is in sync window
+				if (type(tempEvent['start']) == date):
+					startDate = datetime.combine(tempEvent['start'], datetime.min.time(), pytz.utc)
+				else:
+					startDate = tempEvent['start']
+
+				try:
+					if (startDate >= windowBegin and startDate <= windowEnd):
+						# Store event					
+						events[event['GUID']] = tempEvent
+					else:
+						logger.debug('Event %s not in window. startDate: %s windowBegin: %s windowEnd: %s', event['GUID'], startDate, windowBegin, windowEnd)
+				except Exception as e:
+					logger.error ('readSlateCalendar - Error parsing Slate event feed for calendar: : %s', calendar)
+					logger.error ('startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
+					logger.exception(e)
+
+
+				logger.debug('readSlateCalendarWebService - processed event for %s: %s', calendar, tempEvent)
+				
+
 			except Exception as e:
-				logger.error ('readSlateCalendar - Error parsing Slate event feed for calendar: : %s', calendar)
-				logger.error ('startDate: %s windowBegin: %s windowEnd: %s', startDate, windowBegin, windowEnd)
+				logger.error ('Could not read Slate event from Slate Calendar Feed. Slate ID: : %s', event['GUID'])
 				logger.exception(e)
-
-
-			logger.debug('readSlateCalendarWebService - processed event for %s: %s', calendar, tempEvent)
-			
-
-		except Exception as e:
-			logger.error ('Could not read Slate event from Slate Calendar Feed. Slate ID: : %s', event['GUID'])
-			logger.exception(e)
 
 
 	logger.info ('readSlateCalendarWebService - Total Slate events for calendar %s: %s', calendar, len(events))
