@@ -48,6 +48,7 @@ SyncServer = http://localhost:8080/
 SyncServerPort = 8080
 SlateServer = 
 SlateEventWebService = 
+SlateEventWebServiceStops = 
 SlateEventWebServiceUsername = 
 SlateEventWebServicePassword = 
 

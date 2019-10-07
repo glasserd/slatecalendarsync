@@ -24,10 +24,10 @@ This program reads events from the Slate calendar and syncs them to a Google cal
  
 ## Setup
 
-1. Clone this repository. The most recent stable tag is 1.5.3. It is highly recommended that you clone using this tag. Development commits are stored in the master branch, using the latest commit from this branch is at your own risk. After you clone the repository you can get to a specific release with these commands:
+1. Clone this repository. The most recent stable tag is 1.6.0. It is highly recommended that you clone using this tag. Development commits are stored in the master branch, using the latest commit from this branch is at your own risk. After you clone the repository you can get to a specific release with these commands:
     ```
     git fetch --all --tags --prune
-    git checkout tags/1.5.3
+    git checkout tags/1.6.0
     ```
 2. Create a query in Slate that will feed your calendar events. You should use the configurable join form query base.
 
@@ -59,8 +59,31 @@ This program reads events from the Slate calendar and syncs them to a Google cal
     Joins:
     - Join Users to Forms
 
-3. Make a copy of `config.ini.example` and name it `config.ini`. Populate this file with values for your enviornment.
-4. Download Google API Secret and save in same directory as `slatesync.py`. File name should be `client_secret.json`
+3. Make a query in Slate using the custom SQL query base. This query will pull your stop data. Sample SQL is provided below. As of October 2019 stop data is not available through a CJ query base.
+
+    ```
+    SELECT 
+        ts.[id] AS 'GUID'
+        ,'Stop' AS 'Type'
+        ,ts.[name] AS [Title]
+    ,ts.[dtstart] AS 'Start'
+    ,ts.[dtend] AS 'End'
+        ,ts.[timezone_offset] as 'Timezone Offset'     
+    ,ts.[location] as 'Location'	
+    ,char(10) + isnull(ts.[street] + char(10),'') + isnull(ts.[city]  + char(10),'') + isnull(ts.[region],'') AS 'Address'
+        ,convert(nvarchar(max), ts.[notes].query('//text()')) as [Description]
+        , '' AS 'Attendees'	
+    FROM [trip.stop] ts
+    LEFT OUTER JOIN [trip] t ON ts.[trip] = t.[id]
+    LEFT OUTER JOIN [user] u ON t.[user] = u.[id]
+    WHERE u.[email] = @calendar
+        AND	
+            (convert(date, ts.[dtstart]) >= dateadd(day, -15, convert(date, getdate())))
+    ```
+
+
+4. Make a copy of `config.ini.example` and name it `config.ini`. Populate this file with values for your enviornment.
+5. Download Google API Secret and save in same directory as `slatesync.py`. File name should be `client_secret.json`
 
 
 ## Usage
