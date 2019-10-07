@@ -159,7 +159,10 @@ logger.info('Found the following calendars: %s', calendars)
 
 
 def main():
-	logger.info('Start SlateSync')
+	
+	currentThread = threading.current_thread()
+
+	logger.info('Start SlateSync. Current thread: %s', currentThread.getName())
 	logger.debug('Log level set to: %s', logger.getEffectiveLevel())
 	
 	errors = []
@@ -208,7 +211,6 @@ def main():
 				credentials = credentials.refresh(httplib2.Http())
 			except Exception as e:
 				logger.error ('Exception caught while refreshing credentials: %s', e)
-				logger.exception(e)
 			if not credentials or credentials.invalid:
 				logger.error ('Google Calendar: %s could not synced. No valid OAuth Token. Have user reauthenticate.', googleCalendar)
 				logger.info ('credential_file: %s credential_path: %s', credential_file, credential_path)
@@ -914,12 +916,20 @@ def web():
 	httpd.serve_forever()			
 
 def sync():
-	print ('Starting Calendar Sync')
-	t_sync = threading.Timer(syncInterval, sync)
+
+	t_sync = threading.Thread(target=main)
 	t_sync.daemon = False
 	t_sync.start()
-	
-	main()
+
+	while True:
+		time.sleep (syncInterval)
+
+		if t_sync.is_alive():
+			logger.warning ('Sync: Prior thread still running. Do not kick off another sync.')
+		else:
+			t_sync = threading.Thread(target=main)
+			t_sync.daemon = False
+			t_sync.start()
 			
 if __name__ == '__main__':
 
