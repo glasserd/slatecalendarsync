@@ -7,8 +7,8 @@
 	Union College
 	Schenectady, NY
 	
-	Version 1.6.0
-	Released 10/7/19
+	Version 1.6.1
+	Released 10/16/19
 	
 	
 	Copyright 2019 Union College NY
