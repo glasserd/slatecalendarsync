@@ -784,7 +784,10 @@ def googleToDateTime(date1, convertToUTC=True):
 
 	else:
 		#Format:  2015-10-28T15:00:00-04:00
-		tzf = date1[19:].replace(':','')		
+		tzf = date1[19:].replace(':','')
+		# Check for time ending in 'Z'
+		if tzf == 'Z':
+			tzf = '+00:00'
 		tdate = date1[0:19] + tzf		
 		
 		datef = datetime.strptime(tdate,"%Y-%m-%dT%H:%M:%S%z")		
