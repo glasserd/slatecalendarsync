@@ -267,7 +267,7 @@ def main():
 
 							# Check to see if the attendee count changed
 							attendeeChange = False
-							if (summaryChange and eventDetails['type'] == 'Event'):
+							if (summaryChange and eventDetails['type'].lower() == 'event'):
 								googleEventIndex = googleEvent['summary'].rfind('(')
 								slateEventIndex = eventDetails['summary'].rfind('(')
 								if (googleEvent['summary'][0:googleEventIndex] == eventDetails['summary'][0:slateEventIndex]):
@@ -346,7 +346,7 @@ def main():
 									errors.append(addError)
 
 								# Only send notification if summary or time change
-								if ((summaryChange and eventDetails['type'] == 'Interview') or (summaryChange and not attendeeChange) or startChange):										
+								if ((summaryChange and eventDetails['type'].lower() == 'interview') or (summaryChange and not attendeeChange) or startChange):										
 									calendarModifications.append('Deleting event: ' + googleToDateTime(googleEvent['start'], False).strftime("%B %d, %Y %I:%M %p")  + ' - ' +  googleEvents[eventId]['summary'])
 									calendarModifications.append('Adding event: ' + formatDate(eventDetails['start']) + ' - ' + eventDetails['summary'])
 							
@@ -461,7 +461,7 @@ def readSlateCalendarWebService (calendar, slateEventWebService, slateEventWebSe
 				}
 
 				if 'Title' in event:
-					if event['Type'] == 'Interview':
+					if event['Type'].lower() == 'interview':
 						if 'Interviewee' in event:
 							tempEvent['summary'] = event['Title'] + ' (' + event['Interviewee'] + ')'
 						elif openInterviewLabel != '':
@@ -538,7 +538,7 @@ def readSlateCalendarWebService (calendar, slateEventWebService, slateEventWebSe
 						tempEvent['end'] = date(year, month, day)
 
 				# If event is an interview and occurs in the past delete it from the calendar
-				if event['Type'] == 'Interview' and event['Attendees'] == '0' and tempEvent['start'].date() <= datetime.now().date():
+				if event['Type'].lower() == 'interview' and event['Attendees'] == '0' and tempEvent['start'].date() <= datetime.now().date():
 					logger.debug('readSlateCalendarWebService - Removing unbooked expired interview %s for calendar %s', event['GUID'], calendar)
 					continue
 
