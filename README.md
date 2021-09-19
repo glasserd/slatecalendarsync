@@ -70,11 +70,11 @@ This program reads events from the Slate calendar and syncs them to a Google cal
         ts.[id] AS 'GUID'
         ,'Stop' AS 'Type'
         ,ts.[name] AS [Title]
-    ,ts.[dtstart] AS 'Start'
-    ,ts.[dtend] AS 'End'
+        ,format(try_convert(datetime, ts.[dtstart]),'s') AS 'Start'
+        ,format(try_convert(datetime, ts.[dtend]),'s') AS 'End'
         ,ts.[timezone_offset] as 'Timezone Offset'     
-    ,ts.[location] as 'Location'	
-    ,char(10) + isnull(ts.[street] + char(10),'') + isnull(ts.[city]  + char(10),'') + isnull(ts.[region],'') AS 'Address'
+        ,ts.[location] as 'Location'	
+        ,char(10) + isnull(ts.[street] + char(10),'') + isnull(ts.[city]  + char(10),'') + isnull(ts.[region],'') AS 'Address'
         ,convert(nvarchar(max), ts.[notes].query('//text()')) as [Description]
         , '' AS 'Attendees'	
     FROM [trip.stop] ts
