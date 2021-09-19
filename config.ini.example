@@ -22,10 +22,12 @@ LogDaysArchive = 14
 # EmailFromAddress - Address from which you want error reports sent. Can be any address in your organization.
 # ErrorEmailAddress - Address from which you want error reports sent to. Can contain a comma delimited list of email addresses.
 # EmailEventChanges - When event details change alert user (yes/no)
+# MailServer - Outgoing mail server
 [Emails]
 EmailFromAddress = 
 ErrorEmailAddress = 
 EmailEventChanges = yes
+MailServer = 
 
 # Calendar Syncing Section
 #

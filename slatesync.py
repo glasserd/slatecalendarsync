@@ -77,6 +77,7 @@ try:
 	emailFrom = config['Emails']['EmailFromAddress']
 	emailTo = config['Emails']['ErrorEmailAddress'].split(',')
 	emailEventChanges = config['Emails'].getboolean('EmailEventChanges')
+	mailServer = config['Emails']['MailServer']
 	
 	syncServer = config['Servers']['SyncServer']
 	syncServerPort = config['Servers']['syncServerPort']
@@ -402,7 +403,7 @@ def main():
 					msg['Subject'] = 'Slate Calendar Updates'
 					msg['From'] = emailFrom
 					msg['To'] = googleCalendar
-					s = smtplib.SMTP('mail.union.edu')
+					s = smtplib.SMTP(mailServer)
 					s.sendmail(emailFrom, googleCalendar, msg.as_string())
 					s.quit()
 					
@@ -415,7 +416,7 @@ def main():
 		msg['Subject'] = 'Slate-Google Sync Errors'
 		msg['From'] = emailFrom
 		msg['To'] =  ', '.join(emailTo)
-		s = smtplib.SMTP('mail.union.edu')
+		s = smtplib.SMTP(mailServer)
 		s.sendmail(emailFrom, emailTo, msg.as_string())
 		s.quit()
 	
