@@ -31,12 +31,16 @@ This program reads events from the Slate calendar and syncs them to a Google cal
     ```
 2. Create a query in Slate that will feed your calendar events. You should use the configurable join form query base.
 
-    Parameter:
-    ```
-    <param id="calendar" type="varchar" />
-    ```
+    Web Service Settings
+    - Use the "Edit Web Service" function to turn the query into a web service
+    - Service Type = JSON
+    - Parameter:
+        ```
+        <param id="calendar" type="varchar" />
+        ```
+    - Set a username and complex password
 
-    Exports (names must match exactly):
+    Exports **(names must match exactly)**:
     - GUID
     - Type
     - Title
@@ -81,7 +85,6 @@ This program reads events from the Slate calendar and syncs them to a Google cal
             (convert(date, ts.[dtstart]) >= dateadd(day, -15, convert(date, getdate())))
     ```
 
-
 4. Make a copy of `config.ini.example` and name it `config.ini`. Populate this file with values for your enviornment.
 5. Download Google API Secret and save in same directory as `slatesync.py`. File name should be `client_secret.json`
 
@@ -113,8 +116,7 @@ python slatesync.py -d email_address
 ```
 
 ## Known Issues
-- Stops from Trips aren't currently synced as they are not in the Slate query.
-
+- None
 ## Notes
 		
 Please send bugs and feature requests to glasserd@union.edu. There is no guarantee your need will be addressed, but I will consider all requests.
