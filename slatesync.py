@@ -163,7 +163,7 @@ def main():
 	
 	currentThread = threading.current_thread()
 
-	logger.info('Start SlateSync. Current thread: %s', currentThread.getName())
+	logger.info('Start SlateSync. Current thread: %s', currentThread.name)
 	logger.debug('Log level set to: %s', logger.getEffectiveLevel())
 	
 	errors = []
