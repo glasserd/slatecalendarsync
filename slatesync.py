@@ -886,7 +886,7 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 						storage.put(credentials)
 						print ('Storing credentials to ', credential_path)
 					
-					message = 'Succesfully added calendar ' + new_calendar
+					message = 'Successfully added calendar ' + new_calendar
 				
 				else:
 					message = 'Calendar already exists: ' + new_calendar
