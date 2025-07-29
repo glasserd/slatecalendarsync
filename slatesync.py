@@ -793,7 +793,7 @@ def googleToDateTime(date1, convertToUTC=True):
 		
 		datef = datetime.strptime(tdate,"%Y-%m-%dT%H:%M:%S%z")		
 		if (convertToUTC == True):
-			datef = datef.astimezone(timezone('UCT'))
+			datef = datef.astimezone(timezone('UTC'))
 		return datef
 			
 # Manage Dictionary of Slate Calendars
